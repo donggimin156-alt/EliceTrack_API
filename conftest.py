@@ -19,5 +19,6 @@ pytest_plugins = [
     # 2. Fixtures (테스트 실행 전/후 의존성 주입 객체)
     "fixtures.browser_fixture",
     "fixtures.api_fixture",
-    "fixtures.db_fixture"
+    "fixtures.db_fixture",
+    "fixtures.elice_fixture"
 ]

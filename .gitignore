@@ -1,7 +1,7 @@
-# 환경변수 (민감 정보)
+# 환경변수 (민감 정보) — .env.example(템플릿)만 커밋, 나머지 .env.* 는 전부 무시
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Python
 __pycache__/
