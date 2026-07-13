@@ -1,0 +1,15 @@
+# requirements-dev.txt
+# 로컬 환경에서의 개발, 정적 분석(Lint), 보안 취약점 스캐닝을 위한 패키지 목록.
+# 프로덕션(CI/CD) 실행 환경에는 설치하지 않아 컨테이너 이미지를 가볍게 유지합니다.
+
+# 코어 패키지들을 먼저 상속받아 설치합니다.
+-r requirements.txt
+
+# 1. Linting, Formatting & Type Checking
+mypy>=1.9.0,<2.0.0
+ruff>=0.3.0,<1.0.0
+types-requests>=2.31.0,<3.0.0
+
+# 2. Security Scanning
+bandit>=1.7.5,<2.0.0
+pip-audit>=2.7.0,<3.0.0
