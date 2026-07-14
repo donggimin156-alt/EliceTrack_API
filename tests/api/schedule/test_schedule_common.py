@@ -16,6 +16,9 @@ from datetime import date
 
 import pytest
 
+from api.schemas.schedule_schema import ScheduleSchemas
+from utils.assertions import assert_valid_schema
+
 
 def _current_month_range() -> tuple[str, str]:
     """오늘 기준 이번 달 1일부터 말일까지를 ISO 8601 datetime(밀리초 + UTC "Z") 형식으로 반환
@@ -39,18 +42,6 @@ _DEFAULT_DT_START_GE, _DEFAULT_DT_START_LE = _current_month_range()
 _DT_START_GE = os.getenv("SCHEDULE_DT_START_GE", _DEFAULT_DT_START_GE)
 _DT_START_LE = os.getenv("SCHEDULE_DT_START_LE", _DEFAULT_DT_START_LE)
 _COUNT = int(os.getenv("SCHEDULE_COUNT", "3"))
-
-# 응답 item에 반드시 존재해야 하는 최상위 필드
-# 실제 요청(prod 학습자 + dev 교육자)으로 확인한 스키마의 교집합 기준
-# (주의)
-#   - classroom_id/course_id는 최상위가 아니라 item["tags"] 안에 중첩되어 있고
-#     course_id는 코스에 속하지 않는 일정(예: 점심시간)엔 없을 수 있어 필수 필드에서 제외했다
-#   - cohort_id/cohort_name은 prod(반복일정)에는 있었지만 dev(단발성 일정 예: "원본 4")에는
-#     키 자체가 없어 두 환경 모두에서 공통으로 보장되는 필드만 필수로 남겼다
-_REQUIRED_SCHEDULE_FIELDS = {
-    "id", "uid", "recurrence_id", "summary", "lecture_title",
-    "description", "dt_start", "dt_end", "rrule", "tags",
-}
 
 # 공통 테스트의 역할(target) 파라미터
 # id에 대응 TC 번호를 남겨 시트와 추적 가능하게 한다
@@ -109,7 +100,8 @@ class TestScheduleCommon:
         기대값(명세서 'CS-001' 행 기준):
           - 두 응답 모두 status_code == 200
           - JSON 배열 응답이며 1건 이상 ~ count 이하
-          - 각 item에 필수 필드(_REQUIRED_SCHEDULE_FIELDS) 존재
+          - 각 item이 스키마(ScheduleSchemas.SCHEDULE_LIST_SCHEMA)를 만족함
+            (필수 필드 존재 + 타입 + 예상 밖 필드 유입 여부까지 한 번에 검증)
           - 모든 item의 tags.classroom_id가 요청한 classroom_id와 일치
           - 모든 item의 활성 기간(_item_active_date_range)이 요청 기간과 겹쳐야 함
 
@@ -136,22 +128,23 @@ class TestScheduleCommon:
         client = request.getfixturevalue(client_fixture)
         classroom_id = client.classroom_id
 
-        resp = client.get_schedule(
+        res = client.get_schedule(
             dt_start_ge=_DT_START_GE,
             dt_start_le=_DT_START_LE,
             classroom_id=classroom_id,
             count=_COUNT,
         )
 
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
+        assert res.status_code == 200, res.text
+        body = res.json()
 
         assert isinstance(body, list), f"응답이 JSON 배열이 아님: {type(body)}"
         assert 1 <= len(body) <= _COUNT, f"응답 개수({len(body)})가 1~{_COUNT} 범위를 벗어남"
 
-        for item in body:
-            assert _REQUIRED_SCHEDULE_FIELDS.issubset(item.keys()), f"필수 필드 누락: {item}"
+        # 구조(shape) 검증: 필수 필드 존재 + 타입 + 예상 밖 필드 유입 여부를 jsonschema로 한 번에 검증
+        assert_valid_schema(body, ScheduleSchemas.SCHEDULE_LIST_SCHEMA)
 
+        for item in body:
             tags = item.get("tags", {})
             item_classroom_id = tags.get("classroom_id")
             assert str(item_classroom_id) == str(classroom_id), (
