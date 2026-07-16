@@ -20,5 +20,6 @@ pytest_plugins = [
     "fixtures.browser_fixture",
     "fixtures.api_fixture",
     "fixtures.db_fixture",
-    "fixtures.elice_fixture"
+    "fixtures.elice_fixture",
+    "fixtures.class_fixture"
 ]
