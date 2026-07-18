@@ -5,8 +5,9 @@ import logging
 import pytest
 
 from api.endpoints import schedule_api as schedule
+from core.config import settings
 from fixtures.api_fixture import HttpClientFactory
-from fixtures.elice_fixture import _ENVS, _resolve_token
+from fixtures.elice_fixture import _resolve_token
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,8 @@ def _make_schedule_client(env_name: str, role: str, skip_msg: str) -> schedule.S
     if not token:
         pytest.skip(skip_msg)
 
-    env = _ENVS[env_name]
+    # org/classroom_id 등 Elice 환경값 SSOT: core.config.settings.elice_environments
+    env = settings.elice_environments[env_name]
     session = HttpClientFactory.create_session()
     session.headers.update({
         "Authorization": f"Bearer {token}",
