@@ -35,15 +35,16 @@ class BaseAPIClient:
             session (requests.Session): 연결 풀링(Connection Pooling) 및 재시도를 위한 공유 HTTP 세션
             raise_for_status (bool): True일 경우 4xx, 5xx 에러 응답 시 자동으로 예외를 발생시킵니다.
             base_url (str | None): 이 인스턴스에서 사용할 API Base URL.
-                지정하지 않으면 전역 settings.api_base_url을 사용합니다.
-                (dev/prod 등 인스턴스별로 다른 서버를 바라봐야 하는 하위 클라이언트를 위한 override)
+                Elice 클라이언트는 settings.elice_environments[env_name]의
+                REST_API_URL / CLASSROOM_API_URL 등을 넘깁니다.
+                __init__ 직후 self.base_url을 설정하는 하위 클래스도 허용됩니다.
             timeout (tuple[int, int] | None): (Connect, Read) 타임아웃.
                 지정하지 않으면 전역 settings.api_timeout을 사용합니다.
             client_name (str | None): 로깅 컨텍스트에 사용할 이름.
                 지정하지 않으면 클래스 이름을 사용합니다. (예: "Elice-LEARNER")
         """
         self.session: requests.Session = session
-        self.base_url: str = base_url or settings.api_base_url
+        self.base_url: str = base_url or ""
         self.timeout: tuple[int, int] = timeout or settings.api_timeout
         self.raise_for_status: bool = raise_for_status
 
@@ -80,6 +81,12 @@ class BaseAPIClient:
             requests.exceptions.RequestException: 통신 중 발생하는 네트워크/타임아웃 예외
         """
         # 1. URL 및 타임아웃 조합
+        if not self.base_url:
+            raise ValueError(
+                f"{self.__class__.__name__}: base_url이 설정되지 않았습니다. "
+                "settings.elice_environments[env_name]의 REST_API_URL 또는 CLASSROOM_API_URL을 "
+                "__init__에 넘기거나 self.base_url을 설정하세요."
+            )
         url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
         request_timeout = kwargs.pop("timeout", self.timeout)
 

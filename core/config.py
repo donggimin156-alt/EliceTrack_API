@@ -81,30 +81,6 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
-    def base_url(self) -> str:
-        """현재 실행 환경(test_env)에 맞는 UI Base URL을 반환합니다."""
-        urls = {
-            EnvType.DEV: "https://dev.saucedemo.com",
-            EnvType.QA: "https://www.saucedemo.com",
-            EnvType.STG: "https://stg.saucedemo.com",
-            EnvType.PROD: "https://www.saucedemo.com"
-        }
-        return urls[self.test_env]
-
-    @computed_field
-    @property
-    def api_base_url(self) -> str:
-        """현재 실행 환경에 맞는 API Base URL을 반환합니다."""
-        urls = {
-            EnvType.DEV: "https://api-dev.saucedemo.com",
-            EnvType.QA: "https://reqres.in",
-            EnvType.STG: "https://api-stg.saucedemo.com",
-            EnvType.PROD: "https://api.saucedemo.com"
-        }
-        return urls[self.test_env]
-
-    @computed_field
-    @property
     def elice_environments(self) -> dict:
         """
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
@@ -120,20 +96,25 @@ class Settings(BaseSettings):
 
         Returns:
             dict: {"dev": {...}, "prod": {...}} — 각 값은
-                BASE_URL, AUTH_URL, ORG, CLASSROOM_ID, BOARD_ID, OTHERS_ARTICLE_ID
+                REST_API_URL   — 게시판 등 REST API (EliceApiClient)
+                AUTH_API_URL   — 로그인 (/login/pw)
+                CLASSROOM_API_URL — 수업/일정 API (ScheduleAPI, ClassApi)
+                ORG, CLASSROOM_ID, BOARD_ID, OTHERS_ARTICLE_ID
         """
         return {
             "dev": {
-                "BASE_URL": "https://dev-qatrack-api.dev.elicer.io",
-                "AUTH_URL": "https://dev-qatrack-account-api.dev.elicer.io",
+                "REST_API_URL": "https://dev-qatrack-api.dev.elicer.io",
+                "AUTH_API_URL": "https://dev-qatrack-account-api.dev.elicer.io",
+                "CLASSROOM_API_URL": "https://dev-qatrack-classroom-api.dev.elicer.io",
                 "ORG": "academy",
                 "CLASSROOM_ID": self.elice_dev_classroom_id,
                 "BOARD_ID": self.elice_dev_board_id,
                 "OTHERS_ARTICLE_ID": self.elice_dev_others_article_id,
             },
             "prod": {
-                "BASE_URL": "https://api-rest.elice.io",
-                "AUTH_URL": "https://api-account.elice.io",
+                "REST_API_URL": "https://api-rest.elice.io",
+                "AUTH_API_URL": "https://api-account.elice.io",
+                "CLASSROOM_API_URL": "https://api-classroom.elice.io",
                 "ORG": "qatrack",
                 "CLASSROOM_ID": self.elice_prod_classroom_id,
                 "BOARD_ID": self.elice_prod_board_id,

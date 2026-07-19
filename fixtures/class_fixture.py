@@ -10,11 +10,12 @@ def class_api(prod_learner) -> ClassApi:
     TARGET 환경변수를 따라가는 elice_learner 대신
     prod로 고정된 prod_learner를 사용한다.
 
-    base_url은 ClassApi.BASE_URL 클래스 상수로 고정되어 있으므로 여기서 넘기지 않는다.
+    CLASSROOM_API_URL은 settings.elice_environments[env_name] (SSOT)에서 가져온다.
     """
     return ClassApi(
         session=prod_learner.session,
         classroom_id=prod_learner.classroom_id,
+        env_name=prod_learner.env_name,
     )
 
 

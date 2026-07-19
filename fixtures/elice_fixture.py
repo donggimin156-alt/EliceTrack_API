@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _login(env_name: str, login_id: str, password: str) -> str:
-    auth_url = settings.elice_environments[env_name]["AUTH_URL"].rstrip("/")
+    auth_url = settings.elice_environments[env_name]["AUTH_API_URL"].rstrip("/")
     resp = requests.post(
         f"{auth_url}/login/pw",
         json={"login_id": login_id, "password": password},

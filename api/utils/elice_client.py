@@ -28,14 +28,14 @@ class EliceApiClient(BaseAPIClient):
         super().__init__(
             session=requests.Session(),
             raise_for_status=False,
-            base_url=env_config["BASE_URL"].rstrip("/"),
+            base_url=env_config["REST_API_URL"].rstrip("/"),
             timeout=(5, int(settings.elice_api_timeout)),
             client_name=f"Elice-{env_name}-{role}",
         )
         self.env_name = env_name
         self.role = role
         self.org = env_config["ORG"]
-        self.auth_url = env_config["AUTH_URL"].rstrip("/")
+        self.auth_url = env_config["AUTH_API_URL"].rstrip("/")
         self.classroom_id = env_config["CLASSROOM_ID"]
         self.board_id = env_config["BOARD_ID"]
         self.others_article_id = env_config["OTHERS_ARTICLE_ID"]

@@ -14,13 +14,9 @@ from typing import Any
 import requests
 
 from api.base_client import BaseAPIClient
+from core.config import settings
 
 logger = logging.getLogger(__name__)
-
-_SCHEDULE_HOSTS = {
-    "dev": "https://dev-qatrack-classroom-api.dev.elicer.io",
-    "prod": "https://api-classroom.elice.io",
-}
 
 
 @dataclass(frozen=True)
@@ -63,7 +59,7 @@ class ScheduleAPI(BaseAPIClient):
         self.role = role
         self.org = org
         self.classroom_id = classroom_id
-        self.base_url = _SCHEDULE_HOSTS[env_name].rstrip("/")
+        self.base_url = settings.elice_environments[env_name]["CLASSROOM_API_URL"].rstrip("/")
 
     def get_schedule(
         self,
