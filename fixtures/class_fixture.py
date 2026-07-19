@@ -1,22 +1,34 @@
+# fixtures/class_fixture.py
+"""Classroom Course API 전용 픽스처 — 인증·ClassApi·과목 목록 응답 준비."""
 import pytest
 
 from api.endpoints.class_api import ClassApi
+from fixtures.elice_auth import get_env_config, make_authenticated_session
+
+
+def _make_class_client(env_name: str, role: str, skip_msg: str) -> ClassApi:
+    """인증 정보가 없으면 skip, 있으면 Bearer 세션이 세팅된 ClassApi를 생성한다."""
+    session = make_authenticated_session(env_name, role)
+    if session is None:
+        pytest.skip(skip_msg)
+
+    env = get_env_config(env_name)
+    return ClassApi(
+        session,
+        classroom_id=env["CLASSROOM_ID"],
+        env_name=env_name,
+    )
 
 
 @pytest.fixture(scope="session")
-def class_api(prod_learner) -> ClassApi:
+def class_api() -> ClassApi:
     """
-    원래 테스트의 CLASSROOM_ID가 PROD_CLASSROOM_ID와 일치하므로,
-    TARGET 환경변수를 따라가는 elice_learner 대신
-    prod로 고정된 prod_learner를 사용한다.
+    prod 학습자 ClassApi.
 
-    CLASSROOM_API_URL은 settings.elice_environments[env_name] (SSOT)에서 가져온다.
+    CLASSROOM_ID·CLASSROOM_API_URL은 settings.elice_environments["prod"] (SSOT).
+    인증은 fixtures/elice_auth.py (SSOT)를 사용하며 EliceApiClient에 의존하지 않는다.
     """
-    return ClassApi(
-        session=prod_learner.session,
-        classroom_id=prod_learner.classroom_id,
-        env_name=prod_learner.env_name,
-    )
+    return _make_class_client("prod", "LEARNER", "prod 학습자 토큰 없음 (PROD_LEARNER_TOKEN)")
 
 
 @pytest.fixture(scope="session")

@@ -5,27 +5,18 @@ import logging
 import pytest
 
 from api.endpoints import schedule_api as schedule
-from core.config import settings
-from fixtures.api_fixture import HttpClientFactory
-from fixtures.elice_fixture import _resolve_token
+from fixtures.elice_auth import get_env_config, make_authenticated_session
 
 logger = logging.getLogger(__name__)
 
 
 def _make_schedule_client(env_name: str, role: str, skip_msg: str) -> schedule.ScheduleAPI:
     """인증 정보가 없으면 skip, 있으면 Bearer 세션이 세팅된 ScheduleAPI를 생성한다."""
-    token = _resolve_token(env_name, role)
-    if not token:
+    session = make_authenticated_session(env_name, role)
+    if session is None:
         pytest.skip(skip_msg)
 
-    # org/classroom_id 등 Elice 환경값 SSOT: core.config.settings.elice_environments
-    env = settings.elice_environments[env_name]
-    session = HttpClientFactory.create_session()
-    session.headers.update({
-        "Authorization": f"Bearer {token}",
-        "x-elice-org-name-short": env["ORG"],
-    })
-
+    env = get_env_config(env_name)
     return schedule.ScheduleAPI(
         session,
         env_name=env_name,

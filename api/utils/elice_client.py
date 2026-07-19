@@ -40,12 +40,9 @@ class EliceApiClient(BaseAPIClient):
         self.board_id = env_config["BOARD_ID"]
         self.others_article_id = env_config["OTHERS_ARTICLE_ID"]
 
-        # ⚠️ 인증/조직 헤더는 self.default_headers가 아니라 self.session.headers에 심습니다.
-        # default_headers는 이 인스턴스(EliceApiClient)만 아는 파이썬 dict라서,
-        # ClassApi처럼 `session=prod_learner.session`만 넘겨받아 새 BaseAPIClient를 만드는
-        # 다른 클라이언트는 default_headers를 전혀 모르고 인증이 빠진 채 요청을 보내게 됩니다.
-        # requests.Session은 session.headers를 모든 요청에 자동으로 병합해주므로,
-        # 여기 심어두면 이 session 객체를 공유하는 어떤 클라이언트든 인증을 자동으로 물려받습니다.
+        # requests.Session.headers는 session을 공유하는 다른 BaseAPIClient에도
+        # Authorization/org 헤더가 자동 병합되므로, fixture에서 session에 심어두면
+        # ClassApi·ScheduleAPI 등이 같은 인증을 재사용할 수 있다.
         self.session.headers.update({
             "Authorization": f"Bearer {token}",
             "x-elice-org-name-short": self.org,
