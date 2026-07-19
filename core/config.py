@@ -81,7 +81,7 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
-    def base_url(self) -> str:
+    def base_url_prod(self) -> str:
         """현재 실행 환경(test_env)에 맞는 UI Base URL을 반환합니다."""
         urls = {
             EnvType.DEV: "https://dev.saucedemo.com",
@@ -93,7 +93,7 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
-    def api_base_url(self) -> str:
+    def base_url_dev(self) -> str:
         """현재 실행 환경에 맞는 API Base URL을 반환합니다."""
         urls = {
             EnvType.DEV: "https://api-dev.saucedemo.com",

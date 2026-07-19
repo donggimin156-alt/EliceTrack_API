@@ -55,10 +55,6 @@ class EliceApiClient(BaseAPIClient):
             "x-elice-org-name-short": self.org,
         })
 
-    def url(self, path: str) -> str:
-        """기존 elice_fixture.EliceApiClient.url()과 동일한 시그니처를 유지 (하위 호환용)."""
-        return f"{self.base_url}/org/{self.org}/{path.lstrip('/')}"
-
     def _scoped(self, path: str) -> str:
         return f"org/{self.org}/{path.lstrip('/')}"
 
@@ -68,19 +64,3 @@ class EliceApiClient(BaseAPIClient):
 
     def post(self, path: str, data: dict | None = None, json: dict | None = None, **kwargs) -> requests.Response:
         return super().post(self._scoped(path), data=data, json=json, **kwargs)
-
-    # ── 게시판 게시글 (board/article) ──
-    def create_article(self, title: str, content: str, is_secret: bool = False,
-                        classroom_id: str | None = None) -> requests.Response:
-        """게시글 작성. board_article_id 없이 POST → 신규 작성 (명세: 게시글 작성)."""
-        data = {
-            "title": title,
-            "content": content,
-            "is_secret": "true" if is_secret else "false",
-            "classroom_id": classroom_id or self.classroom_id,
-        }
-        return self.post("board/article/edit/", data=data)
-
-    def delete_article(self, board_article_id: int) -> requests.Response:
-        """게시글 삭제 (명세: 게시글 삭제). 정리(teardown)용으로도 사용."""
-        return self.post("board/article/delete/", data={"board_article_id": board_article_id})
