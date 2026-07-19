@@ -46,4 +46,4 @@ PDF 파일 2개(학습자/교육자 권한 UI)를 숙지 하여
 한쪽에서만 쓰일 경우엔 한쪽만 알려줌
 test_class.py는 내 뼈대 코드임 이 스타일에 맞춰서 코딩할 것
 또 폴더 구조에 맞게 코딩 할 것 (fixture, schemas 등등)
-토큰은 elice_fixture.py에 있는 fixture를 받아와서 사용할 것임
+인증은 fixtures/elice_auth.py (SSOT), 도메인별 fixture는 board_fixture·class_fixture·schedule_fixture를 사용할 것

@@ -17,7 +17,7 @@ class BaseAPIClient:
     엔터프라이즈 환경을 위한 공통 API 클라이언트 클래스.
 
     관심사 분리(SoC)를 통해 HTTP 통신 제어(헤더 병합, 타임아웃, 예외 처리 등)에만 집중하며,
-    비즈니스 로직은 상속받는 하위 도메인 API 클래스(예: UserAPI, EliceApiClient)로 위임합니다.
+    비즈니스 로직은 상속받는 하위 도메인 API 클래스(예: UserAPI, BoardApiClient)로 위임합니다.
     """
 
     def __init__(

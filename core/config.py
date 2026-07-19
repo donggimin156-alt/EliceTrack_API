@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # ==========================================
     # 2. Elice 전용 설정 (SSOT)
-    #    ⚠️ 아래 URL/org 값을 elice_fixture.py, elice_client.py 등
+    #    ⚠️ 아래 URL/org 값을 board_fixture.py, board_client.py 등
     #    다른 파일에 절대 복사해서 하드코딩하지 않습니다. 항상 settings.elice_env를 참조하세요.
     # ==========================================
     elice_dev_classroom_id: str = Field(
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
 
         이게 Elice URL/org/classroom_id 등의 유일한 출처(SSOT)입니다.
-        elice_fixture.py, elice_client.py 등 다른 어떤 파일에서도 이 값들을
+        board_fixture.py, board_client.py 등 다른 어떤 파일에서도 이 값들을
         직접 문자열로 재선언하지 말고, 반드시 settings.elice_environments["dev"|"prod"]
         형태로 가져다 쓰세요.
 
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
         Returns:
             dict: {"dev": {...}, "prod": {...}} — 각 값은
-                REST_API_URL   — 게시판 등 REST API (EliceApiClient)
+                REST_API_URL   — 게시판 REST API (BoardApiClient)
                 AUTH_API_URL   — 로그인 (/login/pw)
                 CLASSROOM_API_URL — 수업/일정 API (ScheduleAPI, ClassApi)
                 ORG, CLASSROOM_ID, BOARD_ID, OTHERS_ARTICLE_ID
@@ -121,7 +121,7 @@ class Settings(BaseSettings):
         """
         현재 TARGET 환경변수(dev/prod, 기본 dev)에 대응하는 Elice 환경 설정 묶음.
 
-        elice_learner / elice_educator처럼 "현재 지정된 환경 하나"만 있으면 되는
+        board_learner / board_educator처럼 "현재 지정된 환경 하나"만 있으면 되는
         픽스처를 위한 편의 프로퍼티입니다. 특정 환경을 못 박아야 하면
         elice_environments["dev"|"prod"]를 직접 쓰세요.
         """

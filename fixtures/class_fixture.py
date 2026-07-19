@@ -26,7 +26,7 @@ def class_api() -> ClassApi:
     prod 학습자 ClassApi.
 
     CLASSROOM_ID·CLASSROOM_API_URL은 settings.elice_environments["prod"] (SSOT).
-    인증은 fixtures/elice_auth.py (SSOT)를 사용하며 EliceApiClient에 의존하지 않는다.
+    인증은 fixtures/elice_auth.py (SSOT)를 사용하며 board fixture에 의존하지 않는다.
     """
     return _make_class_client("prod", "LEARNER", "prod 학습자 토큰 없음 (PROD_LEARNER_TOKEN)")
 
