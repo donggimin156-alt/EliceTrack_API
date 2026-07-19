@@ -1,0 +1,37 @@
+# 환경변수 (민감 정보) — .env.example(템플릿)만 커밋, 나머지 .env.* 는 전부 무시
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 테스트 결과물
+reports/
+downloads/
+*.log
+allure-results/
+allure-report/
+htmlcov/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 성능 테스트 계정 정보 (민감)
+performance_test/scripts/QA5test_account_list*.csv

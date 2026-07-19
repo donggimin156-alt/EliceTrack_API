@@ -1,0 +1,27 @@
+# requirements.txt
+# 프로덕션 빌드 및 CI/CD 자동화 테스트 실행에 필수적인 코어 패키지 목록.
+# 의존성 충돌과 환경별 파편화를 막기 위해 명시적인 버전 범위(>=, <)를 강제합니다.
+
+# 1. Core Testing Framework
+pytest>=8.0.0,<9.0.0
+requests>=2.31.0,<3.0.0
+selenium>=4.17.0,<5.0.0
+urllib3>=2.0.0,<3.0.0
+
+# 2. Enterprise & Scale Add-ons
+allure-pytest>=2.13.5,<3.0.0      # Allure 테스트 리포트 생성 플러그인
+pydantic-settings>=2.1.0,<3.0.0   # 환경 변수(.env) 자동 로드 및 검증
+pytest-rerunfailures>=13.0.0,<14.0.0 # Flaky 테스트(간헐적 실패) 재시도 플러그인
+pytest-xdist>=3.5.0,<4.0.0        # 멀티 코어를 활용한 테스트 병렬 실행 플러그인
+python-dotenv>=1.0.1,<2.0.0       # .env 파일 파싱 기본 라이브러리
+
+# 3. Data & Validation
+email-validator>=2.1.0,<3.0.0
+faker>=24.0.0,<25.0.0
+jsonschema>=4.21.0,<5.0.0
+pydantic>=2.5.0,<3.0.0
+
+# 4. Database (ORM & Drivers)
+pymysql>=1.1.0                    # MySQL 통신용 드라이버
+SQLAlchemy>=2.0.0,<3.0.0          # 데이터베이스 ORM 툴킷
+# psycopg2-binary>=2.9.0          # PostgreSQL 드라이버 (필요 시 주석 해제)
