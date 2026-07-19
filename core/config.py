@@ -81,6 +81,7 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+
     def elice_environments(self) -> dict:
         """
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
