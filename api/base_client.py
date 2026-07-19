@@ -57,9 +57,6 @@ class BaseAPIClient:
             "Accept": "application/json"
         }
 
-        if settings.api_key:
-            self.default_headers["x-api-key"] = settings.api_key
-
     def _send_request(
         self,
         method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],

@@ -40,10 +40,6 @@ class EliceApiClient(BaseAPIClient):
         self.board_id = env_config["BOARD_ID"]
         self.others_article_id = env_config["OTHERS_ARTICLE_ID"]
 
-        # Elice는 reqres 전용 x-api-key가 필요 없으므로, 부모(BaseAPIClient)가
-        # settings.api_key 기준으로 넣어준 헤더가 있다면 제거합니다.
-        self.default_headers.pop("x-api-key", None)
-
         # ⚠️ 인증/조직 헤더는 self.default_headers가 아니라 self.session.headers에 심습니다.
         # default_headers는 이 인스턴스(EliceApiClient)만 아는 파이썬 dict라서,
         # ClassApi처럼 `session=prod_learner.session`만 넘겨받아 새 BaseAPIClient를 만드는

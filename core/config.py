@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import Field, SecretStr, computed_field
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 환경 변수와 설정을 관리하는 순수 데이터(Configuration) 모듈이므로 logger를 선언하지 않습니다.
@@ -50,14 +50,7 @@ class Settings(BaseSettings):
     script_timeout: int = Field(default=30, gt=0, le=120, validation_alias="SCRIPT_TIMEOUT")
 
     # ==========================================
-    # 2. 보안 데이터 (인증, API 키)
-    # ==========================================
-    global_admin_user: str = Field(default="", validation_alias="GLOBAL_ADMIN_USER")
-    global_admin_pass: SecretStr = Field(default=SecretStr(""), validation_alias="GLOBAL_ADMIN_PASS")
-    reqres_api_key: SecretStr | None = Field(default=None, validation_alias="REQRES_API_KEY")
-
-    # ==========================================
-    # 3. Elice 전용 설정 (SSOT)
+    # 2. Elice 전용 설정 (SSOT)
     #    ⚠️ 아래 URL/org 값을 elice_fixture.py, elice_client.py 등
     #    다른 파일에 절대 복사해서 하드코딩하지 않습니다. 항상 settings.elice_env를 참조하세요.
     # ==========================================
@@ -76,12 +69,11 @@ class Settings(BaseSettings):
     elice_api_timeout: float = Field(default=10.0, gt=0, validation_alias="ELICE_API_TIMEOUT")
 
     # ==========================================
-    # 4. 동적/계산된 속성 (Computed Properties)
+    # 3. 동적/계산된 속성 (Computed Properties)
     # ==========================================
 
     @computed_field
     @property
-
     def elice_environments(self) -> dict:
         """
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
@@ -145,25 +137,6 @@ class Settings(BaseSettings):
             tuple[int, int]: (Connect 타임아웃, Read 타임아웃)
         """
         return (5, self.api_timeout_sec)
-
-    @property
-    def api_key(self) -> str | None:
-        """
-        SecretStr로 보호된 API 키 값을 안전하게 추출하여 반환합니다.
-
-        ⚠️ 이 키는 reqres(saucedemo API) 전용입니다. Elice 등 다른 도메인 클라이언트는
-        이 값을 default_headers에 자동으로 넣지 않도록 별도 처리해야 합니다
-        (EliceApiClient에서 default_headers.pop("x-api-key", None) 참고).
-        """
-        if not self.reqres_api_key:
-            return None
-        val = self.reqres_api_key.get_secret_value()
-        return val if val else None
-
-    @property
-    def admin_password(self) -> str:
-        """SecretStr로 보호된 어드민 비밀번호를 반환합니다."""
-        return self.global_admin_pass.get_secret_value()
 
 
 # 전역에서 재사용할 단일 싱글톤 인스턴스 (앱 라이프사이클 내내 하나만 유지)
