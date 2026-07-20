@@ -2,8 +2,6 @@
 """게시판 학습자 전용 API 테스트 — 학습자 계정에서만 허용·제한되는 기능."""
 import pytest
 
-from api.utils.board_api import BoardApiClient
-
 
 @pytest.mark.api
 @pytest.mark.board

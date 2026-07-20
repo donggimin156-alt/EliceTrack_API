@@ -39,16 +39,6 @@ CROSS_ACCOUNT_DEV = [
 class TestBoardCommon:
     """공통 게시판 API: 학습자·교육자 모두 동일하게 동작해야 하는 시나리오."""
 
-    @staticmethod
-    def _make_own_article(board, track_articles, title="테스트 글", content="<p>내용</p>", is_secret=False):
-        """본인 글 생성 헬퍼: 생성 성공 확인 + track_articles 등록 후 board_article_id 반환."""
-        created = board.create_article(title, content, is_secret=is_secret)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
-        return aid
-
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
     def test_brd_001_create_article(self, board, track_articles):
         """BRD-001 본인 게시글 작성 성공 (공통).
@@ -72,7 +62,7 @@ class TestBoardCommon:
         assert isinstance(article_id, int), body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_002_edit_own_article(self, board, track_articles, board_ok):
+    def test_brd_002_edit_own_article(self, board, board_ok, make_article):
         """BRD-002 본인 게시글 수정 성공 (공통).
 
         절차: (setup) 본인 글 생성 → 수정 호출 → 재조회.
@@ -82,9 +72,8 @@ class TestBoardCommon:
           - 반환 board_article_id == 요청 board_article_id
           - 재조회 시 modified_datetime 이 null → 값으로 갱신
         """
-
         # setup: 수정할 본인 글 생성 (생성 실패 시 원인이 드러나도록 방어)
-        aid = self._make_own_article(board, track_articles, "수정 전 제목", "<p>수정 전</p>", is_secret=False)
+        aid = make_article(board, "수정 전 제목", "<p>수정 전</p>", is_secret=False)
 
         # 생성 직후 modified_datetime 은 null
         before = board.get_article(aid).json()["board_article"]
@@ -330,7 +319,7 @@ class TestBoardCommon:
         assert "board_article_id" not in body, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_012_get_own_article(self, board, track_articles, board_ok):
+    def test_brd_012_get_own_article(self, board, board_ok, make_article):
         """BRD-012 본인 게시글 단건 조회 성공 (공통).
 
         절차: (setup) 본인 글 생성 → GET 단건조회 → board_article 필드·값 검증.
@@ -343,7 +332,7 @@ class TestBoardCommon:
         title, content = "단건조회 테스트 제목", "<p>단건조회 내용</p>"
 
         # setup: 본인 글 생성
-        aid = self._make_own_article(board, track_articles, title, content, is_secret=False)
+        aid = make_article(board, title, content, is_secret=False)
 
         # 단건조회
         resp = board.get_article(aid)
@@ -378,7 +367,7 @@ class TestBoardCommon:
     @pytest.mark.security
     @pytest.mark.xfail(reason="V7#2 타인 게시글 조회 시 작성자 email 노출(버그). 고쳐지면 XPASS로 알림",
                        strict=False)
-    def test_brd_013_others_article_email_exposed(self, dev_learner, dev_educator, track_articles, board_ok):
+    def test_brd_013_others_article_email_exposed(self, dev_learner, dev_educator, board_ok, make_article):
         """BRD-013 [버그] 타인 게시글 조회 시 작성자 개인정보(email) 노출 (dev, 단일 시나리오).
 
         비작성자(교육자)가 타인(학습자) 글을 조회 → 작성자 email 노출.
@@ -386,7 +375,7 @@ class TestBoardCommon:
         prod은 타 계정 글 생성 불가로 dev에서만.
         """
         # 학습자 생성 → 비작성자(교육자) 조회
-        aid = self._make_own_article(dev_learner, track_articles, "타인조회 대상 글", "<p>내용</p>", is_secret=False)
+        aid = make_article(dev_learner, "타인조회 대상 글", "<p>내용</p>", is_secret=False)
 
         body = board_ok(dev_educator.get_article(aid))
         user = body["board_article"]["user"]
@@ -399,7 +388,7 @@ class TestBoardCommon:
                        strict=False)
     @pytest.mark.parametrize("author_fixture,reader_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_014_cross_account_email_exposed(self, request, author_fixture,
-                                                 reader_fixture, track_articles, board_ok):
+                                                 reader_fixture, board_ok, make_article):
         """BRD-014 [버그] 크로스계정 조회 시 작성자 개인정보(email) 노출 (dev, 2방향).
 
         학습자↔교육자 양방향으로 비작성자 조회 시 email·display_email 노출.
@@ -408,7 +397,7 @@ class TestBoardCommon:
         author = request.getfixturevalue(author_fixture)
         reader = request.getfixturevalue(reader_fixture)
 
-        aid = self._make_own_article(author, track_articles, "크로스계정 조회 대상", "<p>내용</p>", is_secret=False)
+        aid = make_article(author, "크로스계정 조회 대상", "<p>내용</p>", is_secret=False)
 
         body = board_ok(reader.get_article(aid))
         user = body["board_article"]["user"]
@@ -452,7 +441,7 @@ class TestBoardCommon:
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_017_edit_others_article_blocked(self, request, author_fixture,
-                                                 actor_fixture, track_articles, board_fail):
+                                                 actor_fixture, board_fail, make_article):
         """BRD-017 타인 게시글 수정 시도 → 권한 차단 (dev, cross-account).
 
         수정은 정상 차단(삭제와 달리 버그 아님). 학습자·교육자 모두 타인 글 수정 불가(동일).
@@ -468,7 +457,7 @@ class TestBoardCommon:
 
         # 작성자가 글 생성
         original_title = "수정차단 대상 글"
-        aid = self._make_own_article(author, track_articles, original_title, "<p>원본</p>", is_secret=False)
+        aid = make_article(author, original_title, "<p>원본</p>", is_secret=False)
 
         # 비작성자가 수정 시도 → 차단되어야 함
         resp = actor.update_article(aid, "몰래 수정", "<p>변경 시도</p>", is_secret=False)
@@ -487,7 +476,6 @@ class TestBoardCommon:
           - 삭제 응답 _result.status == 'ok'
           - 이후 단건조회 시 _result.status == 'fail', fail_code == 'resource_not_found'
         """
-
         # setup: 본인 글 생성
         created = board.create_article("삭제 대상 글", "<p>내용</p>", is_secret=False)
         assert created.status_code == 200, created.text
@@ -561,14 +549,14 @@ class TestBoardCommon:
         assert_valid_schema(body["board_articles"], BoardSchemas.BOARD_ARTICLE_LIST)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_022_like_add(self, board, track_articles, board_ok):
+    def test_brd_022_like_add(self, board, board_ok, make_article):
         """BRD-022 게시글 좋아요 추가 성공 (공통, 본인 글).
 
         기대(명세서 '게시글 좋아요 추가'):
           - like/add _result.status == 'ok'
           - 이후 조회 시 is_liked == True, board_article_like_count 증가(+1)
         """
-        aid = self._make_own_article(board, track_articles, "좋아요 추가 대상", "<p>내용</p>", is_secret=False)
+        aid = make_article(board, "좋아요 추가 대상", "<p>내용</p>", is_secret=False)
 
         before = board.get_article(aid).json()["board_article"]
         resp = board.like_add(aid)
@@ -579,13 +567,13 @@ class TestBoardCommon:
         assert after["board_article_like_count"] == before["board_article_like_count"] + 1, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_023_like_count_reflected(self, board, track_articles, board_ok):
+    def test_brd_023_like_count_reflected(self, board, board_ok, make_article):
         """BRD-023 좋아요 추가 후 like_count·is_liked 반영 검증 (공통, 본인 글).
 
         절차: 좋아요 전 get(N) → like/add → 다시 get.
         기대: board_article_like_count == N + 1, is_liked == True.
         """
-        aid = self._make_own_article(board, track_articles, "좋아요 카운트 검증", "<p>내용</p>", is_secret=False)
+        aid = make_article(board, "좋아요 카운트 검증", "<p>내용</p>", is_secret=False)
 
         # 좋아요 전 N 기록
         n = board.get_article(aid).json()["board_article"]["board_article_like_count"]
@@ -599,24 +587,24 @@ class TestBoardCommon:
         assert after["is_liked"] is True, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_024_self_like_allowed(self, board, track_articles, board_ok):
+    def test_brd_024_self_like_allowed(self, board, board_ok, make_article):
         """BRD-024 본인 게시글 좋아요(self-like) 허용 (공통).
 
         기대: 본인 글에 like/add → _result.status == 'ok' (self-like 허용).
         """
-        aid = self._make_own_article(board, track_articles, "self-like 대상", "<p>내용</p>", is_secret=False)
+        aid = make_article(board, "self-like 대상", "<p>내용</p>", is_secret=False)
 
         resp = board.like_add(aid)
         board_ok(resp)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_025_like_idempotent(self, board, track_articles, board_ok):
+    def test_brd_025_like_idempotent(self, board, board_ok, make_article):
         """BRD-025 이미 좋아요한 글 재추가 (멱등성) (공통, 본인 글).
 
         절차: like/add 1회 → 재호출.
         기대: 재호출도 _result.status == 'ok', board_article_like_count 중복 증가 없음.
         """
-        aid = self._make_own_article(board, track_articles, "멱등 좋아요 대상", "<p>내용</p>", is_secret=False)
+        aid = make_article(board, "멱등 좋아요 대상", "<p>내용</p>", is_secret=False)
 
         # 1회 좋아요
         board_ok(board.like_add(aid))
@@ -863,14 +851,14 @@ class TestBoardCommon:
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_044_edit_others_comment_blocked(self, request, author_fixture,
-                                                 actor_fixture, track_articles, board_fail):
+                                                 actor_fixture, board_fail, make_article):
         """BRD-044 타인 댓글 수정 시도 → 권한 차단 (dev, cross-account).
 
         수정은 정상 차단. 기대: _result.status=='fail', fail_code=='resource_not_found'.
         """
         author = request.getfixturevalue(author_fixture)
         actor = request.getfixturevalue(actor_fixture)
-        aid = self._make_own_article(author, track_articles)
+        aid = make_article(author)
         cid = author.create_comment(aid, "원본 댓글").json()["article_comment_id"]
 
         resp = actor.update_comment(cid, aid, "몰래 수정")
@@ -893,7 +881,7 @@ class TestBoardCommon:
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_046_delete_others_comment_blocked(self, request, author_fixture,
-                                                   actor_fixture, track_articles, board_fail):
+                                                   actor_fixture, board_fail, make_article):
         """BRD-046 타인 댓글 삭제 시도 → 권한 차단 (dev, cross-account).
 
         댓글 삭제는 정상 차단(게시글 삭제 버그와 대조).
@@ -901,7 +889,7 @@ class TestBoardCommon:
         """
         author = request.getfixturevalue(author_fixture)
         actor = request.getfixturevalue(actor_fixture)
-        aid = self._make_own_article(author, track_articles)
+        aid = make_article(author)
         cid = author.create_comment(aid, "원본 댓글").json()["article_comment_id"]
 
         resp = actor.delete_comment(cid)
@@ -1051,7 +1039,7 @@ class TestBoardCommon:
     @pytest.mark.xfail(reason="V7#3 비작성자가 타인 비밀글 조회 가능. 고쳐지면 XPASS로 알림", strict=False)
     @pytest.mark.parametrize("author_fixture,reader_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_056_others_secret_article_blocked(self, request, author_fixture,
-                                                   reader_fixture, track_articles):
+                                                   reader_fixture, make_article):
         """BRD-056 [버그] 타인 비밀글 조회 가능 (dev, cross-account).
 
         보안 기대: 비작성자는 is_secret=true 글 조회 차단(_result.status=='fail').
@@ -1059,20 +1047,20 @@ class TestBoardCommon:
         """
         author = request.getfixturevalue(author_fixture)
         reader = request.getfixturevalue(reader_fixture)
-        aid = self._make_own_article(author, track_articles,
+        aid = make_article(author,
                                      title="비밀글", content="<p>비밀 내용</p>", is_secret=True)
 
         body = reader.get_article(aid).json()
         assert body["_result"]["status"] == "fail", f"비작성자 비밀글 조회 차단 실패(버그): {body}"
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_057_html_content_preserved(self, board, track_articles):
+    def test_brd_057_html_content_preserved(self, board, make_article):
         """BRD-057 content 허용 HTML 태그 보존 검증 (공통).
 
         기대: 허용 태그(p, b, i 등)는 get/ 응답에 원문 그대로 보존.
         """
         content = "<p><b>굵게</b><i>기울임</i></p>"
-        aid = self._make_own_article(board, track_articles, title="HTML 태그 글", content=content)
+        aid = make_article(board, title="HTML 태그 글", content=content)
 
         stored = board.get_article(aid).json()["board_article"]["content"]
         assert stored == content, stored
@@ -1081,14 +1069,14 @@ class TestBoardCommon:
     @pytest.mark.security
     @pytest.mark.xfail(reason="V7#4 저장형 XSS: content 미새니타이징. 고쳐지면 XPASS로 알림", strict=False)
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_058_xss_content_sanitized(self, board, track_articles):
+    def test_brd_058_xss_content_sanitized(self, board, make_article):
         """BRD-058 [버그] content 위험 태그 미새니타이징 (저장형 XSS) (공통).
 
         보안 기대: 위험 태그/속성은 제거 또는 이스케이프되어 원문 그대로 저장되면 안 됨.
         실측(V7#4 버그): script/onerror/iframe 등이 원문 그대로 저장·반환됨 → 아래 assert 실패 → xfail.
         """
         payload = "<img src=x onerror=alert(1)><iframe src=//evil></iframe>"
-        aid = self._make_own_article(board, track_articles, title="XSS 글", content=payload)
+        aid = make_article(board, title="XSS 글", content=payload)
 
         stored = board.get_article(aid).json()["board_article"]["content"]
         assert payload not in stored, f"위험 페이로드가 그대로 저장됨(XSS 버그): {stored}"
@@ -1120,14 +1108,14 @@ class TestBoardCommon:
             track_articles.append((board, aid))
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_061_write_read_consistency(self, board, track_articles):
+    def test_brd_061_write_read_consistency(self, board, make_article):
         """BRD-061 작성 직후 반환 id 즉시 조회 (write-read 일관성) (공통).
 
         기대: 즉시 조회 성공, title/content 작성값과 일치.
         """
         title, content = "즉시조회 제목", "<p>즉시조회 내용</p>"
 
-        aid = self._make_own_article(board, track_articles, title, content, is_secret=False)
+        aid = make_article(board, title, content, is_secret=False)
 
         art = board.get_article(aid).json()["board_article"]
         assert_valid_schema(art, BoardSchemas.BOARD_ARTICLE)

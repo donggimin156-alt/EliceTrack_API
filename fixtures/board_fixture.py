@@ -89,17 +89,34 @@ def board_fail():
 
 
 @pytest.fixture
-def own_article(board, track_articles):
-    """본인 글 1개 생성(200 확인) + 자동정리 등록 후 board_article_id 반환.
+def make_article(track_articles):
+    """제목·내용을 지정해 본인 글을 생성하고 자동정리에 등록한 뒤 board_article_id를 반환하는 팩토리.
 
-    class_fixture의 course_list처럼 "생성 시점에 성공 검증 + 데이터 반환"하는 setup 픽스처.
-    수정/삭제/댓글/좋아요 등 "기존 글에 대해" 검증하는 테스트의 사전 준비용.
+    사용: aid = make_article(board, "제목", "<p>내용</p>")
+    생성 성공 검증(200 + _result.status=='ok')과 track_articles 등록까지 처리하므로
+    테스트는 정리를 신경 쓸 필요가 없다(시그니처에 track_articles를 받지 않아도 됨).
+
+    작성자를 바꿔 넘기면 cross-account 시나리오의 사전 준비로도 쓸 수 있다.
+    (예: make_article(dev_educator, ...) 로 교육자 글을 만들고 학습자로 검증)
     """
-    resp = board.create_article("테스트 글", "<p>내용</p>", is_secret=False)
-    body = assert_board_ok(resp)
-    article_id = body["board_article_id"]
-    track_articles.append((board, article_id))
-    return article_id
+    def _make(client, title="테스트 글", content="<p>내용</p>", is_secret=False):
+        body = assert_board_ok(client.create_article(title, content, is_secret=is_secret))
+        article_id = body.get("board_article_id")
+        assert isinstance(article_id, int), f"setup 게시글 생성 실패: {body}"
+        track_articles.append((client, article_id))
+        return article_id
+
+    return _make
+
+
+@pytest.fixture
+def own_article(board, make_article):
+    """기본 내용의 본인 글 1개를 생성하고 board_article_id를 반환하는 setup 픽스처.
+
+    class_fixture의 course_list처럼 "생성 시점에 성공 검증 + 데이터 반환"한다.
+    제목·내용을 지정해야 하면 make_article 팩토리를 직접 사용한다.
+    """
+    return make_article(board)
 
 
 @pytest.fixture
