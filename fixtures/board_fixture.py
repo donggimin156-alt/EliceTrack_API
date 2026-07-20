@@ -62,6 +62,17 @@ def dev_educator() -> BoardApiClient:
 
 
 @pytest.fixture
+def board(request) -> BoardApiClient:
+    """공통 테스트용 board 클라이언트 (COMMON_TARGETS로 indirect 파라미터화).
+
+    request.param(픽스처 이름, 예: "prod_learner"/"dev_educator")을 해석해
+    해당 board 클라이언트를 반환한다.
+    사용: @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
+    """
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
 def track_articles():
     """생성한 게시글을 테스트 종료 후 자동 삭제.
 
