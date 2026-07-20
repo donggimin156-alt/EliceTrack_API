@@ -46,4 +46,4 @@ class DashboardAPI(BaseAPIClient):
         s = requests.Session()
         s.headers["x-elice-org-name-short"] = self.org
         url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return s.get(url, timeout=settings.elice_api_timeout, **kwargs)
+        return s.get(url, timeout=settings.api_timeout, **kwargs)
