@@ -59,7 +59,9 @@ class BoardSchemas:
             "id": {"type": "integer"},
             "title": {"type": "string"},
             "content": {"type": "string"},
-            "classroom_id": {"type": "string"},
+            # board_id로 생성된 글은 classroom_id가 null로 온다(prod 실측 id=80302).
+            # 명세상 board_id / classroom_id 중 하나만 있으면 되므로 nullable로 둔다.
+            "classroom_id": {"type": ["string", "null"]},
             "course_id": {"type": ["integer", "null"]},
             "user": _USER,
             "created_datetime": {"type": "integer"},
@@ -112,7 +114,9 @@ class BoardSchemas:
         "items": _BOARD_ARTICLE_LIST_ITEM,
     }
 
-    # 댓글 단건조회(board/article/comment/get) 응답의 article_comment 객체
+    # 댓글 객체 (단건조회 article_comment / 목록 article_comments[] 공용).
+    # ※ 실측: 단건조회 응답에는 board_article_id가 있지만, 목록 item에는 없다(dev id=29).
+    #    그래서 properties에는 두되 required에서는 제외해 두 응답 모두 통과시킨다.
     ARTICLE_COMMENT: Final[dict[str, Any]] = {
         "type": "object",
         "properties": {
@@ -125,5 +129,11 @@ class BoardSchemas:
             "is_liked": {"type": "boolean"},
             "comment_like_count": {"type": "integer"},
         },
-        "required": ["id", "content", "user", "board_article_id", "created_datetime"],
+        "required": ["id", "content", "user", "created_datetime"],
+    }
+
+    # 댓글 목록(board/article/comment/list) 응답의 article_comments[] 전체 검증용
+    ARTICLE_COMMENT_LIST: Final[dict[str, Any]] = {
+        "type": "array",
+        "items": ARTICLE_COMMENT,
     }
