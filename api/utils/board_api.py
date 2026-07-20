@@ -1,4 +1,4 @@
-# api/utils/board_client.py
+# api/utils/board_api.py
 """Elice 게시판(Board) REST API 클라이언트.
 
 BaseAPIClient(통신 엔진: 로깅/재시도/추적/Request-ID)를 상속하고, org-scoped 경로와
