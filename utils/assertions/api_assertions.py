@@ -58,6 +58,83 @@ def assert_status_code(
     logger.debug(f"상태 코드 {actual_code} 정상 확인")
 
 
+def assert_board_ok(response: Response) -> dict[str, Any]:
+    """Elice 게시판 응답의 성공을 검증하고, 파싱된 body(dict)를 반환합니다.
+
+    게시판 API는 HTTP가 항상 200이고, 성공/실패는 body `_result.status`(ok/fail)로
+    판정합니다. 이 헬퍼는 두 검사를 한 번에 수행합니다.
+      1) HTTP status_code == 200
+      2) body `_result.status` == "ok"
+
+    Args:
+        response (Response): 게시판 API 응답 객체
+
+    Returns:
+        dict[str, Any]: 파싱된 응답 body (후속 검증에서 재사용).
+
+    Raises:
+        AssertionFailure: HTTP 200이 아니거나 `_result.status`가 "ok"가 아닌 경우.
+    """
+    assert_status_code(response, 200)
+    body = response.json()
+    status = body.get("_result", {}).get("status")
+    if status != "ok":
+        _fail(
+            f"게시판 응답이 성공(ok)이 아님! [_result.status]: {status}\n"
+            f"[Method]: {response.request.method} | [URL]: {response.url}\n"
+            f"[Response Body]:\n{_format_json(body)}"
+        )
+    logger.debug("게시판 응답 _result.status == 'ok' 정상 확인")
+    return body
+
+
+def assert_board_fail(
+    response: Response,
+    fail_code: str | None = None,
+    status_code: int | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Elice 게시판 응답의 실패(fail)를 검증하고, 파싱된 body(dict)를 반환합니다.
+
+    HTTP는 200이지만 `_result.status`가 "fail"인 케이스(권한/파라미터/로직 오류 등)를
+    검증합니다. fail_code / _result.status_code / _result.reason 을 선택적으로 대조합니다.
+
+    Args:
+        response (Response): 게시판 API 응답 객체.
+        fail_code (str | None): 기대하는 최상위 fail_code (예: "invalid_parameter").
+        status_code (int | None): 기대하는 _result.status_code (예: 400, 409).
+        reason (str | None): 기대하는 _result.reason (예: "param", "logic").
+
+    Returns:
+        dict[str, Any]: 파싱된 응답 body.
+
+    Raises:
+        AssertionFailure: HTTP 200이 아니거나 fail 판정/대조값이 어긋난 경우.
+    """
+    assert_status_code(response, 200)
+    body = response.json()
+    result = body.get("_result", {})
+    if result.get("status") != "fail":
+        _fail(
+            f"게시판 응답이 실패(fail)가 아님! [_result.status]: {result.get('status')}\n"
+            f"[Response Body]:\n{_format_json(body)}"
+        )
+
+    mismatches = []
+    if fail_code is not None and body.get("fail_code") != fail_code:
+        mismatches.append(f"fail_code [Expected]: {fail_code} | [Actual]: {body.get('fail_code')}")
+    if status_code is not None and result.get("status_code") != status_code:
+        mismatches.append(f"_result.status_code [Expected]: {status_code} | [Actual]: {result.get('status_code')}")
+    if reason is not None and result.get("reason") != reason:
+        mismatches.append(f"_result.reason [Expected]: {reason} | [Actual]: {result.get('reason')}")
+    if mismatches:
+        _fail("게시판 실패 응답 대조 불일치:\n - " + "\n - ".join(mismatches)
+              + f"\n[Response Body]:\n{_format_json(body)}")
+
+    logger.debug("게시판 응답 실패(fail) 및 대조값 정상 확인")
+    return body
+
+
 def assert_valid_schema(response_json: dict[str, Any], schema: dict[str, Any]) -> None:
     """
     JSON Schema를 기반으로 API 응답의 전체적인 구조와 데이터 타입을 검증합니다.

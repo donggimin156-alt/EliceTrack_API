@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from api.utils.board_api import BoardApiClient
 from api.utils.elice_auth import make_authenticated_session
+from utils.assertions.api_assertions import assert_board_fail, assert_board_ok
 
 load_dotenv()
 
@@ -70,6 +71,35 @@ def board(request) -> BoardApiClient:
     사용: @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
     """
     return request.getfixturevalue(request.param)
+
+
+# ── 검증 헬퍼 주입 (로직은 utils/assertions, class_fixture처럼 픽스처로 받아 사용) ──
+
+
+@pytest.fixture
+def board_ok():
+    """게시판 성공 판정 헬퍼 주입: assert_board_ok(resp) → (200 + _result.status=='ok') 검증 후 body 반환."""
+    return assert_board_ok
+
+
+@pytest.fixture
+def board_fail():
+    """게시판 실패 판정 헬퍼 주입: assert_board_fail(resp, fail_code=, status_code=, reason=)."""
+    return assert_board_fail
+
+
+@pytest.fixture
+def own_article(board, track_articles):
+    """본인 글 1개 생성(200 확인) + 자동정리 등록 후 board_article_id 반환.
+
+    class_fixture의 course_list처럼 "생성 시점에 성공 검증 + 데이터 반환"하는 setup 픽스처.
+    수정/삭제/댓글/좋아요 등 "기존 글에 대해" 검증하는 테스트의 사전 준비용.
+    """
+    resp = board.create_article("테스트 글", "<p>내용</p>", is_secret=False)
+    body = assert_board_ok(resp)
+    article_id = body["board_article_id"]
+    track_articles.append((board, article_id))
+    return article_id
 
 
 @pytest.fixture
