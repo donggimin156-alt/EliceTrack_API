@@ -58,13 +58,41 @@ def assert_status_code(
     logger.debug(f"상태 코드 {actual_code} 정상 확인")
 
 
+def _assert_board_status(response: Response, expected: str) -> dict[str, Any]:
+    """게시판 응답의 HTTP 200 + `_result.status` 를 검증하고 파싱된 body 를 반환합니다.
+
+    게시판 API는 권한/파라미터 오류 같은 비즈니스 실패도 HTTP 200으로 응답하므로
+    `_result.status` 까지 봐야 하고, 반대로 405 같은 HTTP 레벨 오류는 200이 아니므로
+    status_code 검사도 필요합니다. 그래서 두 층을 함께 확인합니다.
+
+    assert_board_ok / assert_board_fail 의 공통 부분이며, 기대값(expected)만 다릅니다.
+
+    Args:
+        response (Response): 게시판 API 응답 객체.
+        expected (str): 기대하는 `_result.status` 값 ("ok" 또는 "fail").
+
+    Returns:
+        dict[str, Any]: 파싱된 응답 body.
+
+    Raises:
+        AssertionFailure: HTTP 200이 아니거나 `_result.status` 가 expected 와 다른 경우.
+    """
+    assert_status_code(response, 200)
+    body = response.json()
+    status = body.get("_result", {}).get("status")
+    if status != expected:
+        _fail(
+            f"게시판 응답 _result.status 불일치! [Expected]: {expected} | [Actual]: {status}\n"
+            f"[Method]: {response.request.method} | [URL]: {response.url}\n"
+            f"[Response Body]:\n{_format_json(body)}"
+        )
+    return body
+
+
 def assert_board_ok(response: Response) -> dict[str, Any]:
     """Elice 게시판 응답의 성공을 검증하고, 파싱된 body(dict)를 반환합니다.
 
-    게시판 API는 HTTP가 항상 200이고, 성공/실패는 body `_result.status`(ok/fail)로
-    판정합니다. 이 헬퍼는 두 검사를 한 번에 수행합니다.
-      1) HTTP status_code == 200
-      2) body `_result.status` == "ok"
+    HTTP status_code == 200 과 body `_result.status` == "ok" 를 함께 확인합니다.
 
     Args:
         response (Response): 게시판 API 응답 객체
@@ -75,15 +103,7 @@ def assert_board_ok(response: Response) -> dict[str, Any]:
     Raises:
         AssertionFailure: HTTP 200이 아니거나 `_result.status`가 "ok"가 아닌 경우.
     """
-    assert_status_code(response, 200)
-    body = response.json()
-    status = body.get("_result", {}).get("status")
-    if status != "ok":
-        _fail(
-            f"게시판 응답이 성공(ok)이 아님! [_result.status]: {status}\n"
-            f"[Method]: {response.request.method} | [URL]: {response.url}\n"
-            f"[Response Body]:\n{_format_json(body)}"
-        )
+    body = _assert_board_status(response, "ok")
     logger.debug("게시판 응답 _result.status == 'ok' 정상 확인")
     return body
 
@@ -111,14 +131,8 @@ def assert_board_fail(
     Raises:
         AssertionFailure: HTTP 200이 아니거나 fail 판정/대조값이 어긋난 경우.
     """
-    assert_status_code(response, 200)
-    body = response.json()
+    body = _assert_board_status(response, "fail")
     result = body.get("_result", {})
-    if result.get("status") != "fail":
-        _fail(
-            f"게시판 응답이 실패(fail)가 아님! [_result.status]: {result.get('status')}\n"
-            f"[Response Body]:\n{_format_json(body)}"
-        )
 
     mismatches = []
     if fail_code is not None and body.get("fail_code") != fail_code:
@@ -129,6 +143,7 @@ def assert_board_fail(
         mismatches.append(f"_result.reason [Expected]: {reason} | [Actual]: {result.get('reason')}")
     if mismatches:
         _fail("게시판 실패 응답 대조 불일치:\n - " + "\n - ".join(mismatches)
+              + f"\n[Method]: {response.request.method} | [URL]: {response.url}"
               + f"\n[Response Body]:\n{_format_json(body)}")
 
     logger.debug("게시판 응답 실패(fail) 및 대조값 정상 확인")
