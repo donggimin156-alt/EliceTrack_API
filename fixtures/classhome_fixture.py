@@ -20,11 +20,11 @@ CLASSROOM_CLIENTS = [
 ]
 
 # ── dashboard 테스트 공통 parametrize ─────────────────────────────────────────
-# 학습자·교육자·운영·dev 전부 동일한 결과를 확인하는 sad-path 케이스용
+# 학습자·교육자·운영·dev 전부 동일한 결과를 확인하는 sad-path 케이스용 (api_fixture, class_id_fixture)
 DASHBOARD_CLIENTS = [
-    pytest.param("prod_learner_dashboard_api", marks=pytest.mark.learner,  id="prod-learner"),
-    pytest.param("dev_learner_dashboard_api",  marks=pytest.mark.learner,  id="dev-learner"),
-    pytest.param("dev_educator_dashboard_api", marks=pytest.mark.educator, id="dev-educator"),
+    pytest.param("prod_learner_dashboard_api", "prod_class_id", marks=pytest.mark.learner,  id="prod-learner"),
+    pytest.param("dev_learner_dashboard_api",  "dev_class_id",  marks=pytest.mark.learner,  id="dev-learner"),
+    pytest.param("dev_educator_dashboard_api", "dev_class_id",  marks=pytest.mark.educator, id="dev-educator"),
 ]
 
 # 학습자 토큰으로 운영·dev 양쪽 실행하는 케이스용 (api_fixture, class_id_fixture)
@@ -45,10 +45,13 @@ def _make_classroom_client(env_name: str, role: str, skip_msg: str) -> Classroom
     if session is None:
         pytest.skip(skip_msg)
     env = get_env_config(env_name)
+    classroom_id = env.get("CLASSROOM_ID", "").strip()
+    if not classroom_id:
+        pytest.skip(f"{env_name.upper()} CLASSROOM_ID 미설정 — .env에 추가하세요")
     return ClassroomAPI(
         session=session,
         org=env["ORG"],
-        classroom_id=env["CLASSROOM_ID"],
+        classroom_id=classroom_id,
         env=env_name,
     )
 
@@ -81,12 +84,18 @@ def dev_educator_classroom_api() -> ClassroomAPI:
 
 @pytest.fixture(scope="session")
 def prod_class_id() -> str:
-    return get_env_config("prod")["CLASSROOM_ID"]
+    val = get_env_config("prod").get("CLASSROOM_ID", "").strip()
+    if not val:
+        pytest.skip("PROD CLASSROOM_ID 미설정 — .env에 추가하세요")
+    return val
 
 
 @pytest.fixture(scope="session")
 def dev_class_id() -> str:
-    return get_env_config("dev")["CLASSROOM_ID"]
+    val = get_env_config("dev").get("CLASSROOM_ID", "").strip()
+    if not val:
+        pytest.skip("DEV CLASSROOM_ID 미설정 — .env에 추가하세요")
+    return val
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -125,6 +134,18 @@ def dev_learner_account_id() -> int:
     val = os.getenv("DEV_LEARNER_ACCOUNT_ID", "").strip()
     if not val:
         pytest.skip("DEV_LEARNER_ACCOUNT_ID 미설정 — .env에 추가하세요")
+    return int(val)
+
+
+@pytest.fixture(scope="session")
+def dev_educator_account_id() -> int:
+    """교육자 account_id — Student 테이블에 없는 id (DEV_EDUCATOR_ACCOUNT_ID 환경변수).
+
+    CH-028: 학습자 토큰으로 교육자 id 조회 시 409 확인용.
+    """
+    val = os.getenv("DEV_EDUCATOR_ACCOUNT_ID", "").strip()
+    if not val:
+        pytest.skip("DEV_EDUCATOR_ACCOUNT_ID 미설정 — .env에 추가하세요")
     return int(val)
 
 

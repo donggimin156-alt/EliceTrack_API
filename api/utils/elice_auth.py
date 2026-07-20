@@ -3,8 +3,6 @@
 
 토큰 해석, /login/pw, Bearer session 생성 등 classhome/board/schedule/class fixture가
 공유하는 인증 로직의 SSOT(Single Source of Truth).
-
-NOTE: refactor/project-cleanup 머지 시 login()의 "AUTH_URL" 키를 "AUTH_API_URL"로 변경 필요.
 """
 import os
 
@@ -16,7 +14,7 @@ from fixtures.api_fixture import HttpClientFactory
 
 def login(env_name: str, login_id: str, password: str) -> str:
     """POST /login/pw 로 access_token을 발급받는다."""
-    auth_url = settings.elice_environments[env_name]["AUTH_URL"].rstrip("/")
+    auth_url = settings.elice_environments[env_name]["AUTH_API_URL"].rstrip("/")
     resp = requests.post(
         f"{auth_url}/login/pw",
         json={"login_id": login_id, "password": password},
