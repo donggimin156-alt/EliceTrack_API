@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # ==========================================
     # 2. Elice 전용 설정 (SSOT)
-    #    ⚠️ 아래 URL/org 값을 board_fixture.py, board_client.py 등
+    #    ⚠️ 아래 URL/org 값을 board_fixture.py, board_api.py 등
     #    다른 파일에 절대 복사해서 하드코딩하지 않습니다. 항상 settings.elice_env를 참조하세요.
     # ==========================================
     elice_dev_classroom_id: str = Field(
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
 
         이게 Elice URL/org/classroom_id 등의 유일한 출처(SSOT)입니다.
-        board_fixture.py, board_client.py 등 다른 어떤 파일에서도 이 값들을
+        board_fixture.py, board_api.py 등 다른 어떤 파일에서도 이 값들을
         직접 문자열로 재선언하지 말고, 반드시 settings.elice_environments["dev"|"prod"]
         형태로 가져다 쓰세요.
 

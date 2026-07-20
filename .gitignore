@@ -24,6 +24,9 @@ allure-report/
 htmlcov/
 .coverage
 
+# 실측 응답 덤프 (테스트계정/개인 이메일 포함 — 로컬/노션 참조용, 커밋 제외)
+docs/brd_실측_responses*.json
+
 # IDE
 .vscode/
 .idea/
