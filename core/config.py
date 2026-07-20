@@ -42,11 +42,8 @@ class Settings(BaseSettings):
     # ==========================================
     # 1. 실행 환경 및 타임아웃
     # ==========================================
-    test_env: EnvType = Field(default=EnvType.QA, validation_alias="TEST_ENV")
 
-    ui_timeout: int = Field(default=15, gt=0, le=300, validation_alias="UI_TIMEOUT")
     api_timeout_sec: int = Field(default=10, gt=0, le=120, validation_alias="API_TIMEOUT")
-    page_load_timeout: int = Field(default=30, gt=0, le=300, validation_alias="PAGE_LOAD_TIMEOUT")
     script_timeout: int = Field(default=30, gt=0, le=120, validation_alias="SCRIPT_TIMEOUT")
 
     # ==========================================
@@ -65,8 +62,6 @@ class Settings(BaseSettings):
     )
     elice_prod_board_id: str = Field(default="10187", validation_alias="PROD_BOARD_ID")
     elice_prod_others_article_id: str = Field(default="78933", validation_alias="PROD_OTHERS_ARTICLE_ID")
-
-    elice_api_timeout: float = Field(default=10.0, gt=0, validation_alias="ELICE_API_TIMEOUT")
 
     # ==========================================
     # 3. 동적/계산된 속성 (Computed Properties)

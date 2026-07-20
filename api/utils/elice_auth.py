@@ -18,7 +18,7 @@ def login(env_name: str, login_id: str, password: str) -> str:
     resp = requests.post(
         f"{auth_url}/login/pw",
         json={"login_id": login_id, "password": password},
-        timeout=settings.elice_api_timeout,
+        timeout=settings.api_timeout,
     )
     resp.raise_for_status()
     return resp.json()["access_token"]
