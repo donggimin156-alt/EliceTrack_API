@@ -16,16 +16,14 @@ class DirectoryManager:
     @staticmethod
     def ensure_directories() -> None:
         """
-        리포트 및 다운로드 등 프레임워크 실행에 필수적인 디렉터리를 생성합니다.
+        리포트 등 프레임워크 실행에 필수적인 디렉터리를 생성합니다.
         이미 존재하는 경우 오류를 무시(exist_ok=True)합니다.
         """
         reports_dir = PROJECT_ROOT / "reports"
-        downloads_dir = PROJECT_ROOT / "downloads"
-        
+
         os.makedirs(reports_dir, exist_ok=True)
-        os.makedirs(downloads_dir, exist_ok=True)
-        
-        logger.debug(f"필수 디렉터리 보장 완료: {reports_dir}, {downloads_dir}")
+
+        logger.debug(f"필수 디렉터리 보장 완료: {reports_dir}")
 
 
 def pytest_addoption(parser: Parser) -> None:

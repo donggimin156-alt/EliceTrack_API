@@ -24,6 +24,9 @@ allure-report/
 htmlcov/
 .coverage
 
+# 실측 응답 덤프 (테스트계정/개인 이메일 포함 — 로컬/노션 참조용, 커밋 제외)
+docs/brd_실측_responses*.json
+
 # IDE
 .vscode/
 .idea/
@@ -32,3 +35,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# 성능 테스트 계정 정보 (민감)
+performance_test/scripts/QA5test_account_list*.csv
