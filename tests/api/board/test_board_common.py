@@ -84,11 +84,7 @@ class TestBoardCommon:
         """
 
         # setup: 수정할 본인 글 생성 (생성 실패 시 원인이 드러나도록 방어)
-        created = board.create_article("수정 전 제목", "<p>수정 전</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, "수정 전 제목", "<p>수정 전</p>", is_secret=False)
 
         # 생성 직후 modified_datetime 은 null
         before = board.get_article(aid).json()["board_article"]
@@ -347,11 +343,7 @@ class TestBoardCommon:
         title, content = "단건조회 테스트 제목", "<p>단건조회 내용</p>"
 
         # setup: 본인 글 생성
-        created = board.create_article(title, content, is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, title, content, is_secret=False)
 
         # 단건조회
         resp = board.get_article(aid)
@@ -388,11 +380,7 @@ class TestBoardCommon:
         prod은 타 계정 글 생성 불가로 dev에서만.
         """
         # 학습자 생성 → 비작성자(교육자) 조회
-        created = dev_learner.create_article("타인조회 대상 글", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((dev_learner, aid))
+        aid = self._make_own_article(dev_learner, track_articles, "타인조회 대상 글", "<p>내용</p>", is_secret=False)
 
         body = board_ok(dev_educator.get_article(aid))
         user = body["board_article"]["user"]
@@ -414,11 +402,7 @@ class TestBoardCommon:
         author = request.getfixturevalue(author_fixture)
         reader = request.getfixturevalue(reader_fixture)
 
-        created = author.create_article("크로스계정 조회 대상", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((author, aid))
+        aid = self._make_own_article(author, track_articles, "크로스계정 조회 대상", "<p>내용</p>", is_secret=False)
 
         body = board_ok(reader.get_article(aid))
         user = body["board_article"]["user"]
@@ -462,7 +446,7 @@ class TestBoardCommon:
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_017_edit_others_article_blocked(self, request, author_fixture,
-                                                 actor_fixture, track_articles):
+                                                 actor_fixture, track_articles, board_fail):
         """BRD-017 타인 게시글 수정 시도 → 권한 차단 (dev, cross-account).
 
         수정은 정상 차단(삭제와 달리 버그 아님). 학습자·교육자 모두 타인 글 수정 불가(동일).
@@ -478,18 +462,11 @@ class TestBoardCommon:
 
         # 작성자가 글 생성
         original_title = "수정차단 대상 글"
-        created = author.create_article(original_title, "<p>원본</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((author, aid))
+        aid = self._make_own_article(author, track_articles, original_title, "<p>원본</p>", is_secret=False)
 
         # 비작성자가 수정 시도 → 차단되어야 함
         resp = actor.update_article(aid, "몰래 수정", "<p>변경 시도</p>", is_secret=False)
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "resource_not_found", body
+        board_fail(resp, fail_code="resource_not_found")
 
         # 원본이 실제로 바뀌지 않았는지 작성자로 재조회
         after = author.get_article(aid).json()["board_article"]
@@ -546,7 +523,7 @@ class TestBoardCommon:
         assert resp.json()["_result"]["status"] == "fail", resp.text
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_020_delete_nonexistent_article(self, board):
+    def test_brd_020_delete_nonexistent_article(self, board, board_fail):
         """BRD-020 존재하지 않는 게시글 삭제 실패 (공통).
 
         기대(명세서 '게시글 삭제' fail):
@@ -556,10 +533,7 @@ class TestBoardCommon:
         """
         resp = board.delete_article(99999999)
 
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "resource_not_found", body
+        board_fail(resp, fail_code="resource_not_found")
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
     def test_brd_021_list_articles(self, board, board_ok):
@@ -588,11 +562,7 @@ class TestBoardCommon:
           - like/add _result.status == 'ok'
           - 이후 조회 시 is_liked == True, board_article_like_count 증가(+1)
         """
-        created = board.create_article("좋아요 추가 대상", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, "좋아요 추가 대상", "<p>내용</p>", is_secret=False)
 
         before = board.get_article(aid).json()["board_article"]
         resp = board.like_add(aid)
@@ -609,11 +579,7 @@ class TestBoardCommon:
         절차: 좋아요 전 get(N) → like/add → 다시 get.
         기대: board_article_like_count == N + 1, is_liked == True.
         """
-        created = board.create_article("좋아요 카운트 검증", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, "좋아요 카운트 검증", "<p>내용</p>", is_secret=False)
 
         # 좋아요 전 N 기록
         n = board.get_article(aid).json()["board_article"]["board_article_like_count"]
@@ -632,11 +598,7 @@ class TestBoardCommon:
 
         기대: 본인 글에 like/add → _result.status == 'ok' (self-like 허용).
         """
-        created = board.create_article("self-like 대상", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, "self-like 대상", "<p>내용</p>", is_secret=False)
 
         resp = board.like_add(aid)
         board_ok(resp)
@@ -648,11 +610,7 @@ class TestBoardCommon:
         절차: like/add 1회 → 재호출.
         기대: 재호출도 _result.status == 'ok', board_article_like_count 중복 증가 없음.
         """
-        created = board.create_article("멱등 좋아요 대상", "<p>내용</p>", is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), f"setup 게시글 생성 실패: {created.text}"
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, "멱등 좋아요 대상", "<p>내용</p>", is_secret=False)
 
         # 1회 좋아요
         board_ok(board.like_add(aid))
@@ -665,254 +623,229 @@ class TestBoardCommon:
         assert count2 == count1, f"멱등이어야 하는데 count 증가: {count1} -> {count2}"
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_026_like_delete(self, board, track_articles, board_ok):
+    def test_brd_026_like_delete(self, board, own_article, board_ok):
         """BRD-026 게시글 좋아요 삭제 성공 (공통, 본인 글).
 
         절차: 좋아요 추가 → 삭제.
         기대: like/delete _result.status=='ok', 이후 is_liked==False, like_count 감소.
         """
-        aid = self._make_own_article(board, track_articles)
 
-        board.like_add(aid)
-        before = board.get_article(aid).json()["board_article"]["board_article_like_count"]
+        board.like_add(own_article)
+        before = board.get_article(own_article).json()["board_article"]["board_article_like_count"]
 
-        resp = board.like_delete(aid)
+        resp = board.like_delete(own_article)
         board_ok(resp)
 
-        after = board.get_article(aid).json()["board_article"]
+        after = board.get_article(own_article).json()["board_article"]
         assert after["is_liked"] is False, after
         assert after["board_article_like_count"] == before - 1, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_027_like_delete_idempotent(self, board, track_articles, board_ok):
+    def test_brd_027_like_delete_idempotent(self, board, own_article, board_ok):
         """BRD-027 좋아요하지 않은 글 좋아요 삭제 (멱등) (공통, 본인 글).
 
         기대: 좋아요 안 한 상태에서 like/delete → _result.status=='ok' (멱등 처리).
         """
-        aid = self._make_own_article(board, track_articles)
 
-        resp = board.like_delete(aid)  # 좋아요 안 한 상태
+        resp = board.like_delete(own_article)  # 좋아요 안 한 상태
         board_ok(resp)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_028_like_list(self, board, track_articles, board_ok):
+    def test_brd_028_like_list(self, board, own_article, board_ok):
         """BRD-028 게시글 좋아요 목록 조회 성공 (공통, 본인 글).
 
         기대: _result.status=='ok', board_article_like_users 가 배열(list)로 반환.
         (※ 명세 표기 like_users → 실제 board_article_like_users, item.user_id → item.id)
         """
-        aid = self._make_own_article(board, track_articles)
-        board.like_add(aid)
+        board.like_add(own_article)
 
-        resp = board.like_list(aid)
+        resp = board.like_list(own_article)
         body = board_ok(resp)
         assert isinstance(body["board_article_like_users"], list), body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_029_like_list_contains_self(self, board, track_articles):
+    def test_brd_029_like_list_contains_self(self, board, own_article):
         """BRD-029 좋아요 추가 후 목록에 본인 id 포함 (공통, 본인 글).
 
         기대: like/add 후 board_article_like_users 에 본인 user id 포함.
         """
-        aid = self._make_own_article(board, track_articles)
-        my_uid = board.get_article(aid).json()["board_article"]["user"]["id"]
+        my_uid = board.get_article(own_article).json()["board_article"]["user"]["id"]
 
-        board.like_add(aid)
-        users = board.like_list(aid).json()["board_article_like_users"]
+        board.like_add(own_article)
+        users = board.like_list(own_article).json()["board_article_like_users"]
         assert my_uid in [u["id"] for u in users], users
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_030_like_list_removes_self(self, board, track_articles):
+    def test_brd_030_like_list_removes_self(self, board, own_article):
         """BRD-030 좋아요 삭제 후 목록에서 본인 id 제거 (공통, 본인 글).
 
         기대: like/add → like/delete 후 board_article_like_users 에 본인 user id 없음.
         """
-        aid = self._make_own_article(board, track_articles)
-        my_uid = board.get_article(aid).json()["board_article"]["user"]["id"]
+        my_uid = board.get_article(own_article).json()["board_article"]["user"]["id"]
 
-        board.like_add(aid)
-        board.like_delete(aid)
-        users = board.like_list(aid).json()["board_article_like_users"]
+        board.like_add(own_article)
+        board.like_delete(own_article)
+        users = board.like_list(own_article).json()["board_article_like_users"]
         assert my_uid not in [u["id"] for u in users], users
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_031_like_list_empty(self, board, track_articles, board_ok):
+    def test_brd_031_like_list_empty(self, board, own_article, board_ok):
         """BRD-031 좋아요 0건 게시글 목록 빈 배열 (공통, 본인 글).
 
         기대: 좋아요 없는 새 글 → _result.status=='ok', board_article_like_users == [].
         """
-        aid = self._make_own_article(board, track_articles)
 
-        resp = board.like_list(aid)
+        resp = board.like_list(own_article)
         body = board_ok(resp)
         assert body["board_article_like_users"] == [], body
 
     # ══════════════ 댓글 (comment) ══════════════
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_032_create_comment(self, board, track_articles, board_ok):
+    def test_brd_032_create_comment(self, board, own_article, board_ok):
         """BRD-032 댓글 작성 성공 (공통, 본인 글).
 
         기대: _result.status=='ok', article_comment_id 정수 반환, article_comment_count +1.
         """
-        aid = self._make_own_article(board, track_articles)
-        before = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        before = board.get_article(own_article).json()["board_article"]["article_comment_count"]
 
-        resp = board.create_comment(aid, "첫 댓글")
+        resp = board.create_comment(own_article, "첫 댓글")
         body = board_ok(resp)
         assert isinstance(body.get("article_comment_id"), int), body
 
-        after = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        after = board.get_article(own_article).json()["board_article"]["article_comment_count"]
         assert after == before + 1, (before, after)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_033_update_own_comment(self, board, track_articles, board_ok):
+    def test_brd_033_update_own_comment(self, board, own_article, board_ok):
         """BRD-033 본인 댓글 수정 성공 (공통).
 
         기대: _result.status=='ok', 반환 article_comment_id == 요청 article_comment_id.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "원본 댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "원본 댓글").json()["article_comment_id"]
 
-        resp = board.update_comment(cid, aid, "수정된 댓글")
+        resp = board.update_comment(cid, own_article, "수정된 댓글")
         body = board_ok(resp)
         assert body.get("article_comment_id") == cid, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_034_comment_modified_datetime(self, board, track_articles):
+    def test_brd_034_comment_modified_datetime(self, board, own_article):
         """BRD-034 댓글 수정 시 modified_datetime 갱신 (공통).
 
         기대: 최초 modified_datetime==None, 수정 후 modified_datetime!=None(값으로 갱신).
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "원본 댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "원본 댓글").json()["article_comment_id"]
 
         before = board.get_comment(cid).json()["article_comment"]
         assert_valid_schema(before, BoardSchemas.ARTICLE_COMMENT)
         assert before["modified_datetime"] is None, before
 
-        board.update_comment(cid, aid, "수정된 댓글")
+        board.update_comment(cid, own_article, "수정된 댓글")
         after = board.get_comment(cid).json()["article_comment"]
         assert after["modified_datetime"] is not None, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_035_create_comment_fail_missing_content(self, board, track_articles):
+    def test_brd_035_create_comment_fail_missing_content(self, board, own_article, board_fail):
         """BRD-035 댓글 작성 실패 (content 누락) (공통).
 
         기대: _result.status=='fail', fail_code=='invalid_parameter'.
         """
-        aid = self._make_own_article(board, track_articles)
 
-        resp = board.comment_edit_raw({"board_article_id": aid})  # content 누락
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "invalid_parameter", body
+        resp = board.comment_edit_raw({"board_article_id": own_article})  # content 누락
+        body = board_fail(resp, fail_code="invalid_parameter")
         assert "fail_message" in body and "fail_detail" in body, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_036_create_comment_fail_missing_board_article_id(self, board):
+    def test_brd_036_create_comment_fail_missing_board_article_id(self, board, board_fail):
         """BRD-036 댓글 작성 실패 (board_article_id 누락) (공통).
 
         기대: _result.status=='fail', fail_code=='invalid_parameter'.
         """
         resp = board.comment_edit_raw({"content": "내용만 있음"})  # board_article_id 누락
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "invalid_parameter", body
+        body = board_fail(resp, fail_code="invalid_parameter")
         assert "fail_message" in body and "fail_detail" in body, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_037_comment_on_nonexistent_article(self, board):
+    def test_brd_037_comment_on_nonexistent_article(self, board, board_fail):
         """BRD-037 존재하지 않는 게시글에 댓글 작성 실패 (공통).
 
         기대: _result.status=='fail', fail_code=='resource_not_found'.
         """
         resp = board.comment_edit_raw({"board_article_id": 99999999, "content": "내용"})
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "resource_not_found", body
+        board_fail(resp, fail_code="resource_not_found")
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_038_comment_count_increases(self, board, track_articles):
+    def test_brd_038_comment_count_increases(self, board, own_article):
         """BRD-038 댓글 작성 후 article_comment_count 증가 (공통).
 
         기대: 댓글 작성 후 article_comment_count == N + 1.
         """
-        aid = self._make_own_article(board, track_articles)
-        n = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        n = board.get_article(own_article).json()["board_article"]["article_comment_count"]
 
-        board.create_comment(aid, "댓글")
-        after = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        board.create_comment(own_article, "댓글")
+        after = board.get_article(own_article).json()["board_article"]["article_comment_count"]
         assert after == n + 1, (n, after)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_039_list_comments(self, board, track_articles, board_ok):
+    def test_brd_039_list_comments(self, board, own_article, board_ok):
         """BRD-039 댓글 목록 조회 성공 (공통).
 
         기대: _result.status=='ok', article_comments 배열, article_comment_count 정수.
         """
-        aid = self._make_own_article(board, track_articles)
-        board.create_comment(aid, "댓글1")
+        board.create_comment(own_article, "댓글1")
 
-        resp = board.list_comments(aid, count=5)
+        resp = board.list_comments(own_article, count=5)
         body = board_ok(resp)
         assert isinstance(body["article_comments"], list), body
         assert isinstance(body["article_comment_count"], int), body
         assert_valid_schema(body["article_comments"], BoardSchemas.ARTICLE_COMMENT_LIST)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_040_comment_list_count_param(self, board, track_articles):
+    def test_brd_040_comment_list_count_param(self, board, own_article):
         """BRD-040 댓글 목록 count 파라미터 동작 (공통).
 
         댓글 3개 작성 후 count=2로 조회 → 반환 개수 <= count.
         """
-        aid = self._make_own_article(board, track_articles)
         for i in range(3):
-            board.create_comment(aid, f"댓글{i}")
+            board.create_comment(own_article, f"댓글{i}")
 
-        resp = board.list_comments(aid, count=2)
+        resp = board.list_comments(own_article, count=2)
         assert resp.status_code == 200, resp.text
         comments = resp.json()["article_comments"]
         assert len(comments) <= 2, comments
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_041_comment_list_empty(self, board, track_articles, board_ok):
+    def test_brd_041_comment_list_empty(self, board, own_article, board_ok):
         """BRD-041 댓글 없는 게시글 목록 빈 배열·count 0 (공통).
 
         기대: _result.status=='ok', article_comments==[], article_comment_count==0.
         """
-        aid = self._make_own_article(board, track_articles)
 
-        resp = board.list_comments(aid, count=5)
+        resp = board.list_comments(own_article, count=5)
         body = board_ok(resp)
         assert body["article_comments"] == [], body
         assert body["article_comment_count"] == 0, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_042_comment_list_count_boundary(self, board, track_articles):
+    def test_brd_042_comment_list_count_boundary(self, board, own_article):
         """BRD-042 댓글 목록 count 경계값(0/음수/초과) (공통).
 
         실측: count=0, -1, 100000 모두 fail/invalid_parameter.
         (TC의 '초과는 상한 범위 내 반환'과 달리, 초과값도 거부됨)
         """
-        aid = self._make_own_article(board, track_articles)
 
         for bad_count in (0, -1, 100000):
-            body = board.list_comments(aid, count=bad_count).json()
+            body = board.list_comments(own_article, count=bad_count).json()
             assert body["_result"]["status"] == "fail", (bad_count, body)
             assert body["fail_code"] == "invalid_parameter", (bad_count, body)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_043_get_comment(self, board, track_articles, board_ok):
+    def test_brd_043_get_comment(self, board, own_article, board_ok):
         """BRD-043 댓글 단건 조회 성공 (공통).
 
         기대: _result.status=='ok', article_comment.id == 요청 id, 스키마 필드 존재.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "댓글 내용").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "댓글 내용").json()["article_comment_id"]
 
         resp = board.get_comment(cid)
         body = board_ok(resp)
@@ -924,7 +857,7 @@ class TestBoardCommon:
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_044_edit_others_comment_blocked(self, request, author_fixture,
-                                                 actor_fixture, track_articles):
+                                                 actor_fixture, track_articles, board_fail):
         """BRD-044 타인 댓글 수정 시도 → 권한 차단 (dev, cross-account).
 
         수정은 정상 차단. 기대: _result.status=='fail', fail_code=='resource_not_found'.
@@ -935,30 +868,26 @@ class TestBoardCommon:
         cid = author.create_comment(aid, "원본 댓글").json()["article_comment_id"]
 
         resp = actor.update_comment(cid, aid, "몰래 수정")
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "resource_not_found", body
+        board_fail(resp, fail_code="resource_not_found")
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_045_delete_own_comment(self, board, track_articles, board_ok):
+    def test_brd_045_delete_own_comment(self, board, own_article, board_ok):
         """BRD-045 본인 댓글 삭제 성공 (공통).
 
         기대: _result.status=='ok', 이후 article_comment_count 감소.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "삭제할 댓글").json()["article_comment_id"]
-        n = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        cid = board.create_comment(own_article, "삭제할 댓글").json()["article_comment_id"]
+        n = board.get_article(own_article).json()["board_article"]["article_comment_count"]
 
         resp = board.delete_comment(cid)
         board_ok(resp)
 
-        after = board.get_article(aid).json()["board_article"]["article_comment_count"]
+        after = board.get_article(own_article).json()["board_article"]["article_comment_count"]
         assert after == n - 1, (n, after)
 
     @pytest.mark.parametrize("author_fixture,actor_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_046_delete_others_comment_blocked(self, request, author_fixture,
-                                                   actor_fixture, track_articles):
+                                                   actor_fixture, track_articles, board_fail):
         """BRD-046 타인 댓글 삭제 시도 → 권한 차단 (dev, cross-account).
 
         댓글 삭제는 정상 차단(게시글 삭제 버그와 대조).
@@ -970,19 +899,15 @@ class TestBoardCommon:
         cid = author.create_comment(aid, "원본 댓글").json()["article_comment_id"]
 
         resp = actor.delete_comment(cid)
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "insufficient_permission", body
+        board_fail(resp, fail_code="insufficient_permission")
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_047_comment_like_add(self, board, track_articles, board_ok):
+    def test_brd_047_comment_like_add(self, board, own_article, board_ok):
         """BRD-047 댓글 좋아요 추가 성공 (공통, 본인 댓글).
 
         기대: _result.status=='ok', 이후 is_liked==True, comment_like_count 증가.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "댓글").json()["article_comment_id"]
         before = board.get_comment(cid).json()["article_comment"]["comment_like_count"]
 
         resp = board.comment_like_add(cid)
@@ -993,25 +918,23 @@ class TestBoardCommon:
         assert after["comment_like_count"] == before + 1, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_048_self_comment_like_allowed(self, board, track_articles, board_ok):
+    def test_brd_048_self_comment_like_allowed(self, board, own_article, board_ok):
         """BRD-048 본인 댓글 좋아요(self-like) 허용 (공통).
 
         기대: 본인 댓글에 comment/like/add → _result.status=='ok'.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "본인 댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "본인 댓글").json()["article_comment_id"]
 
         resp = board.comment_like_add(cid)
         board_ok(resp)
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_049_comment_like_delete(self, board, track_articles, board_ok):
+    def test_brd_049_comment_like_delete(self, board, own_article, board_ok):
         """BRD-049 댓글 좋아요 삭제 성공 (공통, 본인 댓글).
 
         기대: _result.status=='ok', 이후 is_liked==False, comment_like_count 감소.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "댓글").json()["article_comment_id"]
         board.comment_like_add(cid)
         before = board.get_comment(cid).json()["article_comment"]["comment_like_count"]
 
@@ -1023,14 +946,13 @@ class TestBoardCommon:
         assert after["comment_like_count"] == before - 1, after
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_050_comment_like_list(self, board, track_articles, board_ok):
+    def test_brd_050_comment_like_list(self, board, own_article, board_ok):
         """BRD-050 댓글 좋아요 목록 조회 성공 (공통).
 
         기대: _result.status=='ok', 좋아요 유저 목록이 배열로 반환.
         (※ 명세 표기 like_users → 실제 article_comment_like_users, item.user_id → item.id)
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "댓글").json()["article_comment_id"]
         board.comment_like_add(cid)
 
         resp = board.comment_like_list(cid)
@@ -1038,13 +960,12 @@ class TestBoardCommon:
         assert isinstance(body["article_comment_like_users"], list), body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_051_comment_like_count_integrity(self, board, track_articles):
+    def test_brd_051_comment_like_count_integrity(self, board, own_article):
         """BRD-051 댓글 좋아요 count 정합성 (공통).
 
         기대: 좋아요 추가 후 comment_like_count==N+1, 삭제 후 ==N.
         """
-        aid = self._make_own_article(board, track_articles)
-        cid = board.create_comment(aid, "댓글").json()["article_comment_id"]
+        cid = board.create_comment(own_article, "댓글").json()["article_comment_id"]
 
         n = board.get_comment(cid).json()["article_comment"]["comment_like_count"]
         board.comment_like_add(cid)
@@ -1055,16 +976,15 @@ class TestBoardCommon:
     # ══════════════ 인증/인가 (auth) ══════════════
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_052_get_article_no_auth(self, board, track_articles):
+    def test_brd_052_get_article_no_auth(self, board, own_article):
         """BRD-052 토큰 없이 게시글 조회 실패 (공통).
 
         Authorization 헤더 없이 GET → fail/403/auth/not_found_sessionkey.
         """
-        aid = self._make_own_article(board, track_articles)
 
         resp = board.raw("GET", "board/article/get/",
                          headers={"x-elice-org-name-short": board.org},
-                         params={"board_article_id": aid})
+                         params={"board_article_id": own_article})
         assert resp.status_code == 200, resp.text
         r = resp.json()["_result"]
         assert r["status"] == "fail", resp.text
@@ -1073,17 +993,16 @@ class TestBoardCommon:
         assert resp.json()["fail_code"] == "not_found_sessionkey", resp.text
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_053_get_article_bad_token(self, board, track_articles):
+    def test_brd_053_get_article_bad_token(self, board, own_article):
         """BRD-053 잘못된 토큰으로 게시글 조회 실패 (공통).
 
         무효한 Bearer 토큰 → fail/403/auth/no_account_api_session.
         """
-        aid = self._make_own_article(board, track_articles)
 
         resp = board.raw("GET", "board/article/get/",
                          headers={"Authorization": "Bearer invalid_token_123",
                                   "x-elice-org-name-short": board.org},
-                         params={"board_article_id": aid})
+                         params={"board_article_id": own_article})
         assert resp.status_code == 200, resp.text
         r = resp.json()["_result"]
         assert r["status"] == "fail", resp.text
@@ -1092,7 +1011,7 @@ class TestBoardCommon:
         assert resp.json()["fail_code"] == "no_account_api_session", resp.text
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_054_create_article_no_auth(self, board):
+    def test_brd_054_create_article_no_auth(self, board, board_fail):
         """BRD-054 토큰 없이 게시글 작성 실패 (공통).
 
         Authorization 없이 POST edit/ → fail/403/auth, 작성되지 않음(board_article_id 미반환).
@@ -1101,28 +1020,23 @@ class TestBoardCommon:
                          headers={"x-elice-org-name-short": board.org},
                          data={"title": "무단 작성", "content": "<p>x</p>",
                                "is_secret": "false", "classroom_id": board.classroom_id})
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["_result"]["status_code"] == 403, body
-        assert body["_result"]["reason"] == "auth", body
+        body = board_fail(resp, status_code=403, reason="auth")
         assert body["fail_code"] == "not_found_sessionkey", body
         assert "board_article_id" not in body, body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_055_get_article_no_org_header(self, board, track_articles, board_ok):
+    def test_brd_055_get_article_no_org_header(self, board, own_article, board_ok):
         """BRD-055 x-elice-org-name-short 헤더 누락 (공통).
 
         실측: org 헤더가 없어도 URL 경로 /org/{org}/ 로 식별되어 조회 성공(ok).
         (TC의 'fail(org 식별 불가)' 기대와 다름 — 헤더는 이 엔드포인트에서 필수가 아님)
         """
-        aid = self._make_own_article(board, track_articles)
 
         resp = board.raw("GET", "board/article/get/",
                          headers={"Authorization": f"Bearer {board.token}"},
-                         params={"board_article_id": aid})
+                         params={"board_article_id": own_article})
         body = board_ok(resp)
-        assert body["board_article"]["id"] == aid, body
+        assert body["board_article"]["id"] == own_article, body
 
     # ══════════════ 비밀글/XSS/content ══════════════
 
@@ -1207,11 +1121,7 @@ class TestBoardCommon:
         """
         title, content = "즉시조회 제목", "<p>즉시조회 내용</p>"
 
-        created = board.create_article(title, content, is_secret=False)
-        assert created.status_code == 200, created.text
-        aid = created.json().get("board_article_id")
-        assert isinstance(aid, int), created.text
-        track_articles.append((board, aid))
+        aid = self._make_own_article(board, track_articles, title, content, is_secret=False)
 
         art = board.get_article(aid).json()["board_article"]
         assert_valid_schema(art, BoardSchemas.BOARD_ARTICLE)
@@ -1234,17 +1144,14 @@ class TestBoardCommon:
         assert isinstance(body.get("url"), str) and body["url"], body
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_063_attachment_upload_no_file(self, board):
+    def test_brd_063_attachment_upload_no_file(self, board, board_fail):
         """BRD-063 첨부파일 필드 없이 업로드 실패 (공통).
 
         기대: _result.status=='fail', fail_code=='invalid_parameter' (attachment_file 누락).
         """
         resp = board.attachment_upload_raw(files={"dummy": ("", "")})
 
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "invalid_parameter", body
+        board_fail(resp, fail_code="invalid_parameter")
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
     def test_brd_064_attachment_upload_wrong_method(self, board):
@@ -1289,7 +1196,7 @@ class TestBoardCommon:
     # ══════════════ 게시판(board) 관리 — 학습자·교육자 모두 권한 없음 ══════════════
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_066_board_create_no_permission(self, board):
+    def test_brd_066_board_create_no_permission(self, board, board_fail):
         """BRD-066 게시판 생성(board/edit) — 권한 없음 (공통).
 
         게시판(board) 자체 생성은 상위 관리자(HeadTA 이상) 전용 → 학습자·교육자 모두 실패.
@@ -1307,21 +1214,16 @@ class TestBoardCommon:
             "is_secret_force": "false",
             "is_subscribed_default": "false",
         })
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
+        body = board_fail(resp)
         assert body.get("fail_code") in ("insufficient_permission", "resource_not_found"), body
         assert "board_id" not in body, body  # 생성되지 않음
 
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
-    def test_brd_067_board_move_no_permission(self, board):
+    def test_brd_067_board_move_no_permission(self, board, board_fail):
         """BRD-067 게시판 순서 변경(board/move) — 권한 없음 (공통).
 
         순서 이동은 상위 관리자 전용 → 학습자·교육자 모두 실패.
         기대: _result.status=='fail', fail_code=='insufficient_permission'.
         """
         resp = board.board_move(board.board_id, 1)
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["_result"]["status"] == "fail", body
-        assert body["fail_code"] == "insufficient_permission", body
+        board_fail(resp, fail_code="insufficient_permission")
