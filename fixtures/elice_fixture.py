@@ -3,6 +3,9 @@
 
 학습자(Learner) / 교육자(Educator) 두 역할의 인증된 API 클라이언트를 제공합니다.
 인증 방식: POST /login/pw → Bearer token
+
+통신 로직(로깅/cURL 재현/SLA 체크)은 BaseAPIClient가 담당하고,
+이 파일은 인증 정보 해석 → EliceApiClient 생성 → 역할별 픽스처 제공 → teardown만 책임집니다.
 """
 import os
 import logging
@@ -11,88 +14,23 @@ import pytest
 import requests
 from dotenv import load_dotenv
 
+from api.utils.elice_client import EliceApiClient
+from core.config import settings
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = float(os.getenv("ELICE_API_TIMEOUT", "10"))
-
-_ENVS = {
-    "dev": {
-        "BASE_URL": "https://dev-qatrack-api.dev.elicer.io",
-        "AUTH_URL": "https://dev-qatrack-account-api.dev.elicer.io",
-        "ORG": "academy",
-        "CLASSROOM_ID": os.getenv("DEV_CLASSROOM_ID", "22e01595-3c49-4605-8239-fe3473cd7e07"),
-        "BOARD_ID": os.getenv("DEV_BOARD_ID", "1"),
-        "OTHERS_ARTICLE_ID": os.getenv("DEV_OTHERS_ARTICLE_ID", "1"),
-    },
-    "prod": {
-        "BASE_URL": "https://api-rest.elice.io",
-        "AUTH_URL": "https://api-account.elice.io",
-        "ORG": "qatrack",
-        "CLASSROOM_ID": os.getenv("PROD_CLASSROOM_ID", "a647c7c0-1e15-4196-97fd-d6e4dea84b2c"),
-        "BOARD_ID": os.getenv("PROD_BOARD_ID", "10187"),
-        "OTHERS_ARTICLE_ID": os.getenv("PROD_OTHERS_ARTICLE_ID", "78933"),
-    },
-}
-
-
-class EliceApiClient:
-    """Elice API 통신 클라이언트.
-
-    인증 헤더 + org 헤더가 미리 세팅된 requests.Session을 래핑합니다.
-    url() / get() / post() 로 간결하게 호출 가능합니다.
-    """
-
-    def __init__(self, env_name: str, role: str, token: str):
-        e = _ENVS[env_name]
-        self.env = env_name
-        self.role = role
-        self.base = e["BASE_URL"].rstrip("/")
-        self.auth_url = e["AUTH_URL"].rstrip("/")
-        self.org = e["ORG"]
-        self.classroom_id = e["CLASSROOM_ID"]
-        self.board_id = e["BOARD_ID"]
-        self.others_article_id = e["OTHERS_ARTICLE_ID"]
-
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {token}",
-            "x-elice-org-name-short": self.org,
-        })
-
-    def url(self, path: str) -> str:
-        return f"{self.base}/org/{self.org}/{path.lstrip('/')}"
-
-    def get(self, path: str, **kwargs) -> requests.Response:
-        return self.session.get(self.url(path), timeout=_TIMEOUT, **kwargs)
-
-    def post(self, path: str, data: dict | None = None, json: dict | None = None, **kwargs) -> requests.Response:
-        return self.session.post(self.url(path), data=data, json=json, timeout=_TIMEOUT, **kwargs)
-
-    # ── 게시판 게시글 (board/article) ──
-    def create_article(self, title: str, content: str, is_secret: bool = False,
-                       classroom_id: str | None = None) -> requests.Response:
-        """게시글 작성. board_article_id 없이 POST → 신규 작성 (명세: 게시글 작성)."""
-        data = {
-            "title": title,
-            "content": content,
-            "is_secret": "true" if is_secret else "false",
-            "classroom_id": classroom_id or self.classroom_id,
-        }
-        return self.post("board/article/edit/", data=data)
-
-    def delete_article(self, board_article_id: int) -> requests.Response:
-        """게시글 삭제 (명세: 게시글 삭제). 정리(teardown)용으로도 사용."""
-        return self.post("board/article/delete/", data={"board_article_id": board_article_id})
+# ⚠️ dev/prod URL, org, classroom_id 등은 여기서 선언하지 않습니다.
+# 유일한 출처는 core.config.settings.elice_environments 입니다 (config.py 참고).
 
 
 def _login(env_name: str, login_id: str, password: str) -> str:
-    auth_url = _ENVS[env_name]["AUTH_URL"].rstrip("/")
+    auth_url = settings.elice_environments[env_name]["AUTH_URL"].rstrip("/")
     resp = requests.post(
         f"{auth_url}/login/pw",
         json={"login_id": login_id, "password": password},
-        timeout=_TIMEOUT,
+        timeout=settings.elice_api_timeout,
     )
     resp.raise_for_status()
     return resp.json()["access_token"]

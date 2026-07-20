@@ -32,3 +32,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# 성능 테스트 계정 정보 (민감)
+performance_test/scripts/QA5test_account_list*.csv
