@@ -31,6 +31,7 @@ def resolve_token(env_name: str, role: str) -> str | None:
     if token:
         return token
     # prod는 카카오 로그인이라 /login/pw 불가 → 토큰만 허용.
+    # 접두사 없는 LEARNER_LOGIN_ID 등(=dev 계정)이 prod 로그인에 잘못 쓰이지 않도록 dev로 제한.
     if env_name == "dev":
         login_id = os.getenv(f"{prefix}_LOGIN_ID") or os.getenv(f"{role}_LOGIN_ID")
         password = os.getenv(f"{prefix}_PASSWORD") or os.getenv(f"{role}_PASSWORD")

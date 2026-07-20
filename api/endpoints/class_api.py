@@ -5,23 +5,28 @@ BaseAPIClient(api/base_client.py)를 상속받아 UserAPI와 동일한 패턴을
 공통 로깅/재시도/헤더 병합 파이프라인(_send_request)은 부모가 처리하고,
 여기서는 course 엔드포인트 비즈니스 메서드만 구현한다.
 
-주의: course API(api-classroom.elice.io)는 BaseAPIClient가 기본으로 쓰는
-settings.api_base_url과 호스트가 다르다. 그래서 super().__init__() 이후
-self.base_url을 직접 오버라이드한다.
+호스트는 settings.elice_environments[env_name]["CLASSROOM_API_URL"] (SSOT)을 사용한다.
 """
 
 import requests
 
 from api.base_client import BaseAPIClient
+from core.config import settings
 
 
 class ClassApi(BaseAPIClient):
-    # settings.api_base_url과 host가 다르므로 BASE_PATH(UserAPI)처럼 클래스 상수로 고정한다.
-    BASE_URL = "https://api-classroom.elice.io"
-
-    def __init__(self, session: requests.Session, classroom_id: str) -> None:
-        super().__init__(session)
-        self.base_url = self.BASE_URL
+    def __init__(
+        self,
+        session: requests.Session,
+        classroom_id: str,
+        *,
+        env_name: str = "prod",
+    ) -> None:
+        env = settings.elice_environments[env_name]
+        super().__init__(
+            session,
+            base_url=env["CLASSROOM_API_URL"].rstrip("/"),
+        )
         self.classroom_id = classroom_id
 
     @property
