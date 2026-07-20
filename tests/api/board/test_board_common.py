@@ -355,7 +355,13 @@ class TestBoardCommon:
         assert art["title"] == title, art
         assert art["content"] == content, art  # content 원문 보존
 
-        # 스키마: 명세 실측 전 필드 존재
+        # 실측 필드 스냅샷 (위 assert_valid_schema 와 역할이 다르므로 중복이 아님)
+        #  - board_schema: 안정적 구조 계약(타입·nullable·중첩)만 검증
+        #  - 아래 수동 검사: "현재 실제로 오는 필드" 기록. user의 email/display_email은
+        #    타인 글 이메일 노출 버그(BRD-013/014, xfail)의 증거라서, 노출이 사라지면
+        #    여기서도 실패해 변화를 알리는 것이 목적이다.
+        #    => 이메일 노출을 "필수 계약"으로 못 박게 되므로 스키마 required로 옮기지 않는다.
+        #    (게시글 user에는 email이 있지만 댓글 user에는 없어, 공용 _USER 스키마로도 표현 불가)
         spec_fields = {
             "id", "title", "content", "classroom_id", "course_id", "user",
             "created_datetime", "modified_datetime", "is_secret", "is_liked",
