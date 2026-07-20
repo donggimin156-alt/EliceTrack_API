@@ -33,7 +33,7 @@ class BoardApiClient(BaseAPIClient):
             session,
             raise_for_status=False,
             base_url=env_config["REST_API_URL"].rstrip("/"),
-            timeout=(5, int(settings.elice_api_timeout)),
+            timeout=settings.api_timeout,
             client_name=f"Board-{env_name}-{role}",
         )
         # 게시판은 form(x-www-form-urlencoded) / multipart 바디를 쓴다.
