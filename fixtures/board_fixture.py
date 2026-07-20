@@ -7,7 +7,7 @@ import pytest
 from dotenv import load_dotenv
 
 from api.utils.board_client import BoardApiClient
-from fixtures.elice_auth import make_authenticated_session
+from api.utils.elice_auth import make_authenticated_session
 
 load_dotenv()
 

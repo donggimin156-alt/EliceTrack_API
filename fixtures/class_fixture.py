@@ -3,7 +3,7 @@
 import pytest
 
 from api.endpoints.class_api import ClassApi
-from fixtures.elice_auth import get_env_config, make_authenticated_session
+from api.utils.elice_auth import get_env_config, make_authenticated_session
 
 
 def _make_class_client(env_name: str, role: str, skip_msg: str) -> ClassApi:
@@ -74,3 +74,4 @@ def course_data(course_list):
 def full_course_data(full_course_list):
     """full_course_list.json() 반복 호출 제거용."""
     return full_course_list.json()
+

@@ -5,7 +5,7 @@ import logging
 import pytest
 
 from api.endpoints import schedule_api as schedule
-from fixtures.elice_auth import get_env_config, make_authenticated_session
+from api.utils.elice_auth import get_env_config, make_authenticated_session
 
 logger = logging.getLogger(__name__)
 
