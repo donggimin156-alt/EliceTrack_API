@@ -90,7 +90,7 @@ pipeline {
                     }
                 }
                 catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    // marker 인자 없음 → run_tests.sh: pytest tests/ -n auto (풀 테스트)
+                    // marker 인자 없음 → run_tests.sh: pytest tests/  (풀 테스트)
                     sh '''
                         . .venv/bin/activate
                         export TARGET="${TARGET}"

@@ -41,13 +41,13 @@ run_pytest() {
   if [[ -z "$MARKER" ]]; then
     # === CI 풀 회귀: Jenkins는 2번째 인자(스모크) 없이 호출 → tests/ 전체 ===
     echo "[INFO] Target: ALL tests/ | pytest --env=${PYTEST_ENV} | TARGET=${TARGET:-dev}"
-    python -m pytest tests/ -n auto "${COMMON[@]}"
+    python -m pytest tests/  "${COMMON[@]}"
   elif [[ "$MARKER" == "api" ]]; then
     echo "[INFO] Target: tests/api/ (-m api) | pytest --env=${PYTEST_ENV}"
-    python -m pytest tests/api/ -m api -n auto "${COMMON[@]}"
+    python -m pytest tests/api/ -m api "${COMMON[@]}"
   else
     echo "[INFO] Target: MARKER '${MARKER}' | pytest --env=${PYTEST_ENV}"
-    python -m pytest tests/ -m "$MARKER" -n auto "${COMMON[@]}"
+    python -m pytest tests/ -m "$MARKER" "${COMMON[@]}"
   fi
 }
 
