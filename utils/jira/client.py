@@ -101,21 +101,67 @@ class JiraClient:
 
         return JiraIssueResult(success=False, issue_key=None, issue_url=None, error_message=error_message)
 
+    def find_open_issue(self, summary: str) -> str | None:
+        """같은 요약(summary)의 '미해결(Done 아님)' 이슈가 이미 있으면 그 키를 반환합니다.
+
+        같은 테스트가 반복 실패할 때 동일 버그 티켓이 계속 쌓이는 것을 막기 위해,
+        생성 전에 중복 이슈를 조회한다. (Atlassian 신규 검색 API /rest/api/3/search/jql 사용)
+
+        Args:
+            summary (str): 검색할 이슈 요약(제목).
+
+        Returns:
+            str | None: 미해결 중복 이슈의 키(예: "EQA-9"), 없으면 None.
+        """
+        if not self.settings.is_configured:
+            return None
+
+        # summary 안의 특수문자(큰따옴표 등)는 JQL을 깨뜨리므로 안전하게 제거하고 앞부분만 사용한다.
+        safe = summary.replace('"', " ").replace("\\", " ")[:100].strip()
+        jql = (
+            f'project = {self.settings.project_key} '
+            f'AND summary ~ "{safe}" AND statusCategory != Done ORDER BY created DESC'
+        )
+        endpoint = self._build_api_url("rest/api/3/search/jql")
+        auth = HTTPBasicAuth(self.settings.user_email, self.settings.api_token.get_secret_value())
+
+        try:
+            r = self.session.get(
+                endpoint, params={"jql": jql, "maxResults": 1, "fields": "summary"},
+                auth=auth, timeout=self.settings.timeout,
+            )
+            if r.status_code != 200:
+                logger.warning(f"[Jira] 중복 검색 실패(무시하고 생성 진행): {r.status_code} {r.text[:120]}")
+                return None
+            issues = r.json().get("issues", [])
+            return issues[0]["key"] if issues else None
+        except requests.exceptions.RequestException as e:
+            # 검색 실패는 치명적이지 않다 → None 반환해 정상적으로 새 티켓 생성 흐름을 탄다.
+            logger.warning(f"[Jira] 중복 검색 예외(무시): {e}")
+            return None
+
     def create_bug_ticket(self, test_name: str, error_trace: str) -> JiraIssueResult:
         """
         테스트 실패 내용을 기반으로 버그 티켓을 생성합니다.
-        [검증 -> 페이로드 생성 -> API 요청 -> 응답 파싱 -> 결과 반환]의 5단계 구조로 안전하게 동작합니다.
-        
+        같은 요약의 미해결 이슈가 이미 있으면 새로 만들지 않고 그 이슈에 코멘트를 추가합니다(중복 방지).
+
         Args:
             test_name (str): 실패한 테스트 케이스의 이름
             error_trace (str): 실패 시 발생한 에러 스택 트레이스 문자열
-            
+
         Returns:
-            JiraIssueResult: 티켓 생성 성공 여부 및 URL이 담긴 데이터 모델 객체
+            JiraIssueResult: 티켓 생성/코멘트 성공 여부 및 URL이 담긴 데이터 모델 객체
         """
         # 1. 환경 설정 검증 (누락 시 API 요청 생략)
         if not self.settings.is_configured:
             return self._failure(JiraErrorMsg.CONFIG_MISSING.value)
+
+        # 1-b. 중복 방지: 같은 요약의 미해결 이슈가 있으면 새 티켓 대신 코멘트로 실패 이력만 남긴다.
+        summary = self.payload_builder.build(test_name, error_trace)["fields"]["summary"]
+        existing = self.find_open_issue(summary)
+        if existing:
+            logger.info(f"[Jira] 동일 미해결 이슈 존재 → 새 티켓 대신 코멘트: {existing}")
+            return self.add_comment(existing, test_name, error_trace)
 
         # 2. 페이로드 및 엔드포인트, 인증 객체 구성
         endpoint = self._build_api_url("rest/api/2/issue")
