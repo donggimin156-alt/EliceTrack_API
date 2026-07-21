@@ -14,6 +14,20 @@ _reported_issues: set[str] = set()
 _xpass_notified: set[str] = set()
 
 
+def _compose_trace(rep: TestReport) -> str:
+    """실패 리포트에서 스택 트레이스 + 캡처된 로그(api_logger의 HTTP 요청/응답)를 합쳐 반환합니다.
+
+    Captured log 섹션에는 요청 URL·메서드·헤더·payload(Request Data)와 응답 바디가 담겨 있어
+    Jira 버그 리포트만 보고도 원인(어떤 요청에 어떤 응답)이 추적 가능해진다.
+    """
+    parts = [rep.longreprtext or "No Traceback"]
+    for title, content in getattr(rep, "sections", []):
+        # 로그/표준출력 캡처만 포함(불필요한 빈 섹션은 제외)
+        if content and content.strip() and ("log" in title.lower() or "stdout" in title.lower()):
+            parts.append(f"----- {title} -----\n{content.strip()}")
+    return "\n\n".join(parts)
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> Generator[None, None, None]:
     """
@@ -34,7 +48,8 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> Gener
             return
         _reported_issues.add(item.nodeid)
 
-        error_trace = rep.longreprtext if rep.longreprtext else "No Traceback"
+        # 스택 트레이스 + 캡처된 HTTP 요청/응답 로그를 함께 담아 원인 추적을 돕는다.
+        error_trace = _compose_trace(rep)
 
         # @pytest.mark.jira("EQA-5") 로 이 테스트가 추적하는 이슈 키를 읽는다.
         jira_marker = item.get_closest_marker("jira")

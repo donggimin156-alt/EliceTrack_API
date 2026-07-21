@@ -14,7 +14,8 @@ class JiraPayloadBuilder:
 
     # Jira API 거부 방어를 위한 매직 넘버 상수화
     MAX_SUMMARY_LENGTH = 200
-    MAX_TRACE_LENGTH = 8000
+    # 스택 트레이스 + 캡처된 HTTP 요청/응답 로그까지 담으므로 넉넉히 잡는다(Jira description 한도 내).
+    MAX_TRACE_LENGTH = 20000
 
     def __init__(self, project_key: str, issue_type: str) -> None:
         """
@@ -62,7 +63,8 @@ class JiraPayloadBuilder:
             f"* 📌 테스트명: {test_name}\n"
             f"* 🌍 실행 환경: {env_name}\n"
             f"* 🔗 CI/CD 링크: {job_url}\n\n"
-            f"* 🚨 상세 에러 로그:*\n{{code:python}}\n{safe_trace}\n{{code}}"
+            f"* 🚨 상세 로그 (스택 트레이스 + HTTP 요청/응답·payload):*\n"
+            f"{{code}}\n{safe_trace}\n{{code}}"
         )
 
     def build(self, test_name: str, error_trace: str) -> dict[str, Any]:
