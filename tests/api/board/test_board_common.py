@@ -365,6 +365,7 @@ class TestBoardCommon:
 
     @pytest.mark.bug
     @pytest.mark.security
+    @pytest.mark.jira("EQA-5")
     @pytest.mark.xfail(reason="V7#2 타인 게시글 조회 시 작성자 email 노출(버그). 고쳐지면 XPASS로 알림",
                        strict=False)
     def test_brd_013_others_article_email_exposed(self, dev_learner, dev_educator, board_ok, make_article):
@@ -384,6 +385,7 @@ class TestBoardCommon:
 
     @pytest.mark.bug
     @pytest.mark.security
+    @pytest.mark.jira("EQA-5")
     @pytest.mark.xfail(reason="V7#2 크로스계정 조회 시 작성자 email 노출(버그). 고쳐지면 XPASS로 알림",
                        strict=False)
     @pytest.mark.parametrize("author_fixture,reader_fixture", CROSS_ACCOUNT_DEV)
@@ -494,6 +496,7 @@ class TestBoardCommon:
 
     @pytest.mark.bug
     @pytest.mark.security
+    @pytest.mark.jira("EQA-4")
     @pytest.mark.xfail(
         reason="V7#1 권한 미검사 버그: 비작성자(학습자)가 타인(교육자) 게시글 삭제 가능. 고쳐지면 XPASS로 알림",
         strict=False,
@@ -1036,6 +1039,7 @@ class TestBoardCommon:
 
     @pytest.mark.bug
     @pytest.mark.security
+    @pytest.mark.jira("EQA-6")
     @pytest.mark.xfail(reason="V7#3 비작성자가 타인 비밀글 조회 가능. 고쳐지면 XPASS로 알림", strict=False)
     @pytest.mark.parametrize("author_fixture,reader_fixture", CROSS_ACCOUNT_DEV)
     def test_brd_056_others_secret_article_blocked(self, request, author_fixture,
@@ -1067,6 +1071,7 @@ class TestBoardCommon:
 
     @pytest.mark.bug
     @pytest.mark.security
+    @pytest.mark.jira("EQA-7")
     @pytest.mark.xfail(reason="V7#4 저장형 XSS: content 미새니타이징. 고쳐지면 XPASS로 알림", strict=False)
     @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
     def test_brd_058_xss_content_sanitized(self, board, make_article):
