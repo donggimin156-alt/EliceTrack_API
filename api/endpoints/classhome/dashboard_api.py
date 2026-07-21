@@ -9,14 +9,12 @@ dev:  https://dev-qatrack-dashboard-api.dev.elicer.io
 import requests
 
 from api.endpoints.classhome.no_token import NoTokenClient
+from core.config import settings
 
 
 class DashboardAPI(NoTokenClient):
-    PROD_BASE = "https://api-dashboard.elice.io"
-    DEV_BASE = "https://dev-qatrack-dashboard-api.dev.elicer.io"
-
     def __init__(self, session: requests.Session, *, org: str, env: str = "dev") -> None:
-        base_url = self.PROD_BASE if env == "prod" else self.DEV_BASE
+        base_url = settings.elice_environments[env]["DASHBOARD_API_URL"]
         super().__init__(session, org=org, base_url=base_url)
 
     def get_classroom_summary(self, class_id: str, auth: bool = True) -> requests.Response:

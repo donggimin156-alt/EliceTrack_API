@@ -8,12 +8,10 @@ classroom-api는 EliceApiClient 기본 host(api-rest.elice.io)와 달라
 import requests
 
 from api.endpoints.classhome.no_token import NoTokenClient
+from core.config import settings
 
 
 class ClassroomAPI(NoTokenClient):
-    PROD_BASE = "https://api-classroom.elice.io"
-    DEV_BASE = "https://dev-qatrack-classroom-api.dev.elicer.io"
-
     def __init__(
         self,
         session: requests.Session,
@@ -22,7 +20,7 @@ class ClassroomAPI(NoTokenClient):
         classroom_id: str,
         env: str,
     ) -> None:
-        base_url = self.PROD_BASE if env == "prod" else self.DEV_BASE
+        base_url = settings.elice_environments[env]["CLASSROOM_API_URL"]
         super().__init__(session, org=org, base_url=base_url)
         self.classroom_id = classroom_id
 
