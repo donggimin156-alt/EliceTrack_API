@@ -1,44 +1,52 @@
 # fixtures/schedule_fixture.py
-"""Elice 수업일정(Schedule) 전용 API 픽스처 — 사전 준비(인증·세션·클라이언트·조회 파라미터)만 담당."""
-import logging
-
+"""Elice 수업일정(Schedule) 전용 API 픽스처 — 사전 준비(인증·세션·클라이언트·조회 파라미터)만 담당"""
 import pytest
 
 from api.endpoints import schedule_api as schedule
-from api.utils.elice_auth import get_env_config, make_authenticated_session
-
-logger = logging.getLogger(__name__)
+from api.utils.elice_auth import make_authenticated_session
 
 
 def _make_schedule_client(env_name: str, role: str, skip_msg: str) -> schedule.ScheduleAPI:
-    """인증 정보가 없으면 skip, 있으면 Bearer 세션이 세팅된 ScheduleAPI를 생성한다."""
+    """인증 정보가 없으면 skip, 있으면 Bearer 세션이 세팅된 ScheduleAPI를 생성한다"""
     session = make_authenticated_session(env_name, role)
     if session is None:
         pytest.skip(skip_msg)
 
-    env = get_env_config(env_name)
-    return schedule.ScheduleAPI(
-        session,
-        env_name=env_name,
-        role=role,
-        org=env["ORG"],
-        classroom_id=env["CLASSROOM_ID"],
-    )
+    return schedule.ScheduleAPI(session, env_name=env_name)
 
 
 @pytest.fixture(scope="session")
 def schedule_prod_learner() -> schedule.ScheduleAPI:
-    """prod 학습자 수업일정 클라이언트."""
+    """prod 학습자 수업일정 클라이언트"""
     return _make_schedule_client("prod", "LEARNER", "prod 학습자 토큰 없음 (PROD_LEARNER_TOKEN)")
 
 
 @pytest.fixture(scope="session")
 def schedule_dev_educator() -> schedule.ScheduleAPI:
-    """dev 교육자 수업일정 클라이언트."""
+    """dev 교육자 수업일정 클라이언트"""
     return _make_schedule_client("dev", "EDUCATOR", "dev 교육자 인증 정보 없음 (EDUCATOR_LOGIN_ID/PASSWORD)")
 
 
 @pytest.fixture(scope="function")
 def schedule_query_params() -> schedule.ScheduleQueryParams:
-    """CS-001 등 기간 조회 TC에 사용할 dt_start_ge/le, count 파라미터."""
+    """CS-001 등 기간 조회 TC에 사용할 dt_start_ge/le, count 파라미터"""
     return schedule.resolve_schedule_query_params()
+
+
+@pytest.fixture(scope="session")
+def schedule_course_id() -> int:
+    """prod REST course/get 등 — SCHEDULE_COURSE_ID env (dev bulk id와 별개)"""
+    return schedule.resolve_schedule_course_id()
+
+
+@pytest.fixture(scope="session")
+def schedule_dev_attached_course_id(schedule_dev_educator: schedule.ScheduleAPI) -> int:
+    """dev 서버에서 course_id 생성용
+
+    세션 시작 시 한 번 bulk → REST course/get·해피 TC 등에 넘길 숫자 id
+    운영 prod classroom 과목과 무관
+    """
+    try:
+        return schedule.resolve_dev_attached_course_id(schedule_dev_educator)
+    except (TimeoutError, ValueError) as e:
+        pytest.fail(f"dev schedule용 course_id 확보 실패: {e}")
