@@ -43,7 +43,10 @@ class DashboardAPI(BaseAPIClient):
 
     def _no_auth_get(self, endpoint: str, **kwargs) -> requests.Response:
         """Authorization 헤더 없이 GET — 403 차단 검증 전용."""
-        s = requests.Session()
-        s.headers["x-elice-org-name-short"] = self.org
         url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return s.get(url, timeout=settings.api_timeout, **kwargs)
+        return requests.get(
+            url,
+            headers={"x-elice-org-name-short": self.org},
+            timeout=settings.api_timeout,
+            **kwargs,
+        )

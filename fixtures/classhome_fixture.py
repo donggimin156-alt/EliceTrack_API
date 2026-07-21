@@ -119,22 +119,24 @@ def dev_educator_dashboard_api() -> DashboardAPI:
 
 # ── 학습현황 계정 ID 픽스처 ────────────────────────────────────────────────────
 
+def _int_env(var: str, skip_msg: str) -> int:
+    """환경변수를 int로 읽고, 없으면 skip."""
+    val = os.getenv(var, "").strip()
+    if not val:
+        pytest.skip(skip_msg)
+    return int(val)
+
+
 @pytest.fixture(scope="session")
 def prod_learner_account_id() -> int:
     """prod 학습자 account_id (PROD_LEARNER_ACCOUNT_ID 환경변수 — JWT의 _id 필드)."""
-    val = os.getenv("PROD_LEARNER_ACCOUNT_ID", "").strip()
-    if not val:
-        pytest.skip("PROD_LEARNER_ACCOUNT_ID 미설정 — .env에 추가하세요 (예: 8926240)")
-    return int(val)
+    return _int_env("PROD_LEARNER_ACCOUNT_ID", "PROD_LEARNER_ACCOUNT_ID 미설정 — .env에 추가하세요 (예: 8926240)")
 
 
 @pytest.fixture(scope="session")
 def dev_learner_account_id() -> int:
     """학습자 본인 account_id (DEV_LEARNER_ACCOUNT_ID 환경변수)."""
-    val = os.getenv("DEV_LEARNER_ACCOUNT_ID", "").strip()
-    if not val:
-        pytest.skip("DEV_LEARNER_ACCOUNT_ID 미설정 — .env에 추가하세요")
-    return int(val)
+    return _int_env("DEV_LEARNER_ACCOUNT_ID", "DEV_LEARNER_ACCOUNT_ID 미설정 — .env에 추가하세요")
 
 
 @pytest.fixture(scope="session")
@@ -143,10 +145,7 @@ def dev_educator_account_id() -> int:
 
     CH-028: 학습자 토큰으로 교육자 id 조회 시 409 확인용.
     """
-    val = os.getenv("DEV_EDUCATOR_ACCOUNT_ID", "").strip()
-    if not val:
-        pytest.skip("DEV_EDUCATOR_ACCOUNT_ID 미설정 — .env에 추가하세요")
-    return int(val)
+    return _int_env("DEV_EDUCATOR_ACCOUNT_ID", "DEV_EDUCATOR_ACCOUNT_ID 미설정 — .env에 추가하세요")
 
 
 @pytest.fixture(scope="session")
@@ -156,7 +155,4 @@ def prod_other_account_id() -> int:
     게시판 API author 필드 등 정상 경로로 확보한 값 사용 (브루트포스 아님).
     TC 실측값 예시: 8923361
     """
-    val = os.getenv("PROD_OTHER_ACCOUNT_ID", "").strip()
-    if not val:
-        pytest.skip("PROD_OTHER_ACCOUNT_ID 미설정 — .env에 추가하세요 (예: 8923361)")
-    return int(val)
+    return _int_env("PROD_OTHER_ACCOUNT_ID", "PROD_OTHER_ACCOUNT_ID 미설정 — .env에 추가하세요 (예: 8923361)")
