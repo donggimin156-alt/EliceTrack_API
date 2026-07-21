@@ -58,6 +58,11 @@ def assert_status_code(
     logger.debug(f"상태 코드 {actual_code} 정상 확인")
 
 
+def assert_200(response: Response) -> None:
+    """HTTP 200 검증 헬퍼."""
+    assert_status_code(response, 200)
+
+
 def assert_valid_schema(response_json: dict[str, Any], schema: dict[str, Any]) -> None:
     """
     JSON Schema를 기반으로 API 응답의 전체적인 구조와 데이터 타입을 검증합니다.

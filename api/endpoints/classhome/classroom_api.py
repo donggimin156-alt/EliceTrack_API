@@ -7,11 +7,10 @@ classroom-api는 EliceApiClient 기본 host(api-rest.elice.io)와 달라
 """
 import requests
 
-from api.base_client import BaseAPIClient
-from core.config import settings
+from api.endpoints.classhome.no_token import NoTokenClient
 
 
-class ClassroomAPI(BaseAPIClient):
+class ClassroomAPI(NoTokenClient):
     PROD_BASE = "https://api-classroom.elice.io"
     DEV_BASE = "https://dev-qatrack-classroom-api.dev.elicer.io"
 
@@ -24,8 +23,7 @@ class ClassroomAPI(BaseAPIClient):
         env: str,
     ) -> None:
         base_url = self.PROD_BASE if env == "prod" else self.DEV_BASE
-        super().__init__(session, base_url=base_url)
-        self.org = org
+        super().__init__(session, org=org, base_url=base_url)
         self.classroom_id = classroom_id
 
     def get_classroom_list(self, skip=None, count=None, auth: bool = True) -> requests.Response:
@@ -41,12 +39,3 @@ class ClassroomAPI(BaseAPIClient):
             return self._no_auth_get("/classroom/count")
         return self.get("/classroom/count")
 
-    def _no_auth_get(self, endpoint: str, **kwargs) -> requests.Response:
-        """Authorization 헤더 없이 GET — 403 차단 검증 전용."""
-        url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return requests.get(
-            url,
-            headers={"x-elice-org-name-short": self.org},
-            timeout=settings.api_timeout,
-            **kwargs,
-        )

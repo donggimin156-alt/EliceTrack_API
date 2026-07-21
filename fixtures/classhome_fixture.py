@@ -9,8 +9,8 @@ import os
 
 import pytest
 
-from api.endpoints.classroom_api import ClassroomAPI
-from api.endpoints.dashboard_api import DashboardAPI
+from api.endpoints.classhome.classroom_api import ClassroomAPI
+from api.endpoints.classhome.dashboard_api import DashboardAPI
 from api.utils.elice_auth import get_env_config, make_authenticated_session
 
 # ── classroom 테스트 공통 parametrize ──────────────────────────────────────────
@@ -23,6 +23,12 @@ CLASSROOM_CLIENTS = [
 # 학습자·교육자·운영·dev 전부 동일한 결과를 확인하는 sad-path 케이스용 (api_fixture, class_id_fixture)
 DASHBOARD_CLIENTS = [
     pytest.param("prod_learner_dashboard_api", "prod_class_id", marks=pytest.mark.learner,  id="prod-learner"),
+    pytest.param("dev_learner_dashboard_api",  "dev_class_id",  marks=pytest.mark.learner,  id="dev-learner"),
+    pytest.param("dev_educator_dashboard_api", "dev_class_id",  marks=pytest.mark.educator, id="dev-educator"),
+]
+
+# dev 환경만 실행하는 케이스용 (api_fixture, class_id_fixture) — prod 동작이 다를 때 사용
+DASHBOARD_DEV_CLIENTS = [
     pytest.param("dev_learner_dashboard_api",  "dev_class_id",  marks=pytest.mark.learner,  id="dev-learner"),
     pytest.param("dev_educator_dashboard_api", "dev_class_id",  marks=pytest.mark.educator, id="dev-educator"),
 ]

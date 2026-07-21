@@ -1,5 +1,5 @@
 # tests/api/classhome/test_learning_status_learner.py
-"""학습현황 — 학습자 전용 테스트 (CH-020, CH-022, CH-023, CH-028)
+"""학습현황 — 학습자 전용 테스트 (CH-020, CH-022, CH-023, CH-027)
 
 대상 API (dashboard-api):
   GET /classroom/{class_id}   학습자 토큰 접근 검증 (BFLA)
@@ -7,7 +7,7 @@
 """
 import pytest
 
-from api.endpoints.dashboard_api import DashboardAPI
+from api.endpoints.classhome.dashboard_api import DashboardAPI
 from api.schemas.classhome_schema import DashboardSchemas
 from fixtures.classhome_fixture import DASHBOARD_LEARNER_CLIENTS, DASHBOARD_LEARNER_ACCOUNT_PAIRS
 from utils.assertions.api_assertions import assert_valid_schema
@@ -36,7 +36,7 @@ class TestClassroomSummaryLearner:
 @pytest.mark.classhome
 @pytest.mark.learner
 class TestStudentLearningLearner:
-    """GET /student/{account_id} — 학습자 전용 (CH-022, CH-023, CH-028)."""
+    """GET /student/{account_id} — 학습자 전용 (CH-022, CH-023, CH-027)."""
 
     @pytest.mark.parametrize("api_fixture,class_id_fixture,account_id_fixture", DASHBOARD_LEARNER_ACCOUNT_PAIRS)
     def test_ch_022_learner_own_account_returns_200(self, request, api_fixture, class_id_fixture, account_id_fixture):
@@ -69,13 +69,13 @@ class TestStudentLearningLearner:
         resp = prod_learner_dashboard_api.get_student(prod_other_account_id, classroom_id=prod_class_id)
         assert resp.status_code == 403, resp.text
 
-    def test_ch_028_educator_account_id_returns_409(
+    def test_ch_027_educator_account_id_returns_409(
         self,
         dev_learner_dashboard_api: DashboardAPI,
         dev_class_id: str,
         dev_educator_account_id: int,
     ):
-        """[CH-028] 교육자 account_id 대입 시 409(model_not_found) 반환.
+        """[CH-027] 교육자 account_id 대입 시 409(model_not_found) 반환.
 
         Student 테이블에 없는 id이므로 학습자 token이어도 409.
         """

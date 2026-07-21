@@ -6,16 +6,15 @@
 """
 import pytest
 
-from api.endpoints.classroom_api import ClassroomAPI
+from api.endpoints.classhome.classroom_api import ClassroomAPI
 from api.schemas.classhome_schema import ClasshomeSchemas
 from fixtures.classhome_fixture import CLASSROOM_CLIENTS
-from utils.assertions.api_assertions import assert_valid_schema
+from utils.assertions.api_assertions import assert_200, assert_valid_schema
 
 # ── 경계값 상수 ───────────────────────────────────────────────
 VALID_SKIP = 0
 VALID_COUNT = 10
-LARGE_COUNT = 99999         # CH-006: 상한선 없음 확인용 큰 count 값
-OVERFLOW_SKIP_BUFFER = 100  # CH-007: 전체 개수에 더해 skip overflow 유발
+LARGE_COUNT = 99999         # CH-006/007: 상한선 없음 확인 및 skip overflow용 큰 값
 
 
 @pytest.mark.api
@@ -34,52 +33,36 @@ class TestClassroomList:
         """
         api: ClassroomAPI = request.getfixturevalue(client_fixture)
         resp = api.get_classroom_list(skip=VALID_SKIP, count=VALID_COUNT)
-        assert resp.status_code == 200, resp.text
+        assert_200(resp)
         data = resp.json()
         assert_valid_schema(data, ClasshomeSchemas.CLASSROOM_LIST_SCHEMA)
-        # Business: 이름 비어있지 않음
         for item in data:
             assert item["name"] != "", f"빈 name 항목 발견: {item}"
-        # Business: 중복 ID 없음
         ids = [item["id"] for item in data]
         assert len(ids) == len(set(ids)), f"중복 classroom ID 발견: {ids}"
 
     @pytest.mark.parametrize("client_fixture", CLASSROOM_CLIENTS)
-    def test_ch_002_missing_all_params(self, request, client_fixture):
-        """[CH-002] skip·count 모두 생략 시 422 반환 및 두 필드 모두 missing 검증.
+    @pytest.mark.parametrize("params,expected_missing", [
+        pytest.param({}, {"skip", "count"}, id="CH-002-both-missing"),
+        pytest.param({"skip": VALID_SKIP}, {"count"}, id="CH-003-count-missing"),
+    ])
+    def test_ch_002_003_missing_params_returns_422(self, request, client_fixture, params, expected_missing):
+        """[CH-002/003] 필수 파라미터 누락 시 422 반환 및 missing 필드 검증.
 
         기대값:
           - HTTP 422
-          - detail 에 skip, count 모두 missing 타입으로 포함
+          - detail 에 누락된 필드가 missing 타입으로 포함
         """
         api: ClassroomAPI = request.getfixturevalue(client_fixture)
-        resp = api.get_classroom_list()
-        assert resp.status_code == 422, resp.text
-        detail = resp.json().get("detail", [])
-        # detail 목록 중에서, type이 missing인 것들만 골라서, 그 필드 이름(skip, count 등)만 모아놓은 집합
-        missing_fields = {item["loc"][-1] for item in detail if item.get("type") == "missing" and item.get("loc")}
-        assert "skip" in missing_fields, f"skip missing 항목이 없음: {detail}"
-        assert "count" in missing_fields, f"count missing 항목이 없음: {detail}"
-
-    @pytest.mark.parametrize("client_fixture", CLASSROOM_CLIENTS)
-    def test_ch_003_missing_count(self, request, client_fixture):
-        """[CH-003] count만 생략 시 422 반환 및 count missing 검증.
-
-        기대값:
-          - HTTP 422
-          - detail 에 count missing 타입으로 포함
-        """
-        api: ClassroomAPI = request.getfixturevalue(client_fixture)
-        resp = api.get_classroom_list(skip=VALID_SKIP)
+        resp = api.get_classroom_list(**params)
         assert resp.status_code == 422, resp.text
         detail = resp.json().get("detail", [])
         missing_fields = {item["loc"][-1] for item in detail if item.get("type") == "missing" and item.get("loc")}
-        assert "count" in missing_fields, f"count missing 항목이 없음: {detail}"
+        for field in expected_missing:
+            assert field in missing_fields, f"{field} missing 항목이 없음: {detail}"
 
-    # client_fixture — 2가지(prod, dev) * 3가지 = 6번실행
     @pytest.mark.parametrize("client_fixture", CLASSROOM_CLIENTS)
     @pytest.mark.parametrize("bad_count,expected_error", [
-        # (bad_count, expected_error)
         pytest.param(0,     "greater_than_equal", id="count=0"),
         pytest.param(-1,    "greater_than_equal", id="count=-1"),
         pytest.param("abc", "int_parsing",        id="count=string"),
@@ -107,7 +90,7 @@ class TestClassroomList:
         """
         api: ClassroomAPI = request.getfixturevalue(client_fixture)
         resp = api.get_classroom_list(skip=VALID_SKIP, count=LARGE_COUNT)
-        assert resp.status_code == 200, resp.text
+        assert_200(resp)
 
     @pytest.mark.parametrize("client_fixture", CLASSROOM_CLIENTS)
     def test_ch_007_skip_exceeds_total_returns_empty(self, request, client_fixture):
@@ -118,16 +101,8 @@ class TestClassroomList:
           - 응답 배열 == []
         """
         api: ClassroomAPI = request.getfixturevalue(client_fixture)
-        # 소속확인
-        count_resp = api.get_classroom_count()
-        assert count_resp.status_code == 200, count_resp.text
-        total = count_resp.json()
-        assert isinstance(total, int), count_resp.text
-        # 실제 개수 + 100(overflow)
-        overflow_skip = total + OVERFLOW_SKIP_BUFFER
-
-        resp = api.get_classroom_list(skip=overflow_skip, count=VALID_COUNT)
-        assert resp.status_code == 200, resp.text
+        resp = api.get_classroom_list(skip=LARGE_COUNT, count=VALID_COUNT)
+        assert_200(resp)
         assert resp.json() == [], f"빈 배열이어야 하지만 데이터가 반환됨: {resp.json()}"
 
     @pytest.mark.parametrize("client_fixture", CLASSROOM_CLIENTS)
@@ -153,15 +128,13 @@ class TestClassroomList:
         """
         api: ClassroomAPI = request.getfixturevalue(client_fixture)
         count_resp = api.get_classroom_count()
-        assert count_resp.status_code == 200, count_resp.text
+        assert_200(count_resp)
         total: int = count_resp.json()
         assert isinstance(total, int), count_resp.text
 
-        # count는 >=1 범위여야하니까
         list_resp = api.get_classroom_list(skip=0, count=max(total, 1))
-        assert list_resp.status_code == 200, list_resp.text
+        assert_200(list_resp)
         items = list_resp.json()
         assert len(items) == total, f"목록 길이({len(items)}) ≠ count API 값({total})"
-        # Business: 중복 classroom ID 없음
         ids = [item["id"] for item in items]
         assert len(ids) == len(set(ids)), f"중복 classroom ID 발견: {ids}"

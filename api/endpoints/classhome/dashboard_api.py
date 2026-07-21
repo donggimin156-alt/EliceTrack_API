@@ -8,18 +8,16 @@ dev:  https://dev-qatrack-dashboard-api.dev.elicer.io
 """
 import requests
 
-from api.base_client import BaseAPIClient
-from core.config import settings
+from api.endpoints.classhome.no_token import NoTokenClient
 
 
-class DashboardAPI(BaseAPIClient):
+class DashboardAPI(NoTokenClient):
     PROD_BASE = "https://api-dashboard.elice.io"
     DEV_BASE = "https://dev-qatrack-dashboard-api.dev.elicer.io"
 
     def __init__(self, session: requests.Session, *, org: str, env: str = "dev") -> None:
         base_url = self.PROD_BASE if env == "prod" else self.DEV_BASE
-        super().__init__(session, base_url=base_url)
-        self.org = org
+        super().__init__(session, org=org, base_url=base_url)
 
     def get_classroom_summary(self, class_id: str, auth: bool = True) -> requests.Response:
         """GET /classroom/{class_id} — 반 전체 학습현황."""
@@ -41,12 +39,3 @@ class DashboardAPI(BaseAPIClient):
             return self._no_auth_get(f"/student/{account_id}", params=params)
         return self.get(f"/student/{account_id}", params=params)
 
-    def _no_auth_get(self, endpoint: str, **kwargs) -> requests.Response:
-        """Authorization 헤더 없이 GET — 403 차단 검증 전용."""
-        url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return requests.get(
-            url,
-            headers={"x-elice-org-name-short": self.org},
-            timeout=settings.api_timeout,
-            **kwargs,
-        )
