@@ -39,6 +39,7 @@ COMMON=(
 
 run_pytest() {
   if [[ -z "$MARKER" ]]; then
+    # === CI 풀 회귀: Jenkins는 2번째 인자(스모크) 없이 호출 → tests/ 전체 ===
     echo "[INFO] Target: ALL tests/ | pytest --env=${PYTEST_ENV} | TARGET=${TARGET:-dev}"
     python -m pytest tests/ -n auto "${COMMON[@]}"
   elif [[ "$MARKER" == "api" ]]; then
