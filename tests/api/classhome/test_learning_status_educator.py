@@ -15,7 +15,7 @@ NON_EXISTENT_CLASS_ID = "00000000-0000-0000-0000-000000000000"
 
 
 @pytest.mark.api
-@pytest.mark.classroom
+@pytest.mark.classhome
 @pytest.mark.educator
 class TestClassroomSummaryEducator:
     """GET /classroom/{class_id} — 교육자 전용 (CH-019, CH-021)."""

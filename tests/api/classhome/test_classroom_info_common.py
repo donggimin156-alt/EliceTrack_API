@@ -19,7 +19,7 @@ OVERFLOW_SKIP_BUFFER = 100  # CH-007: 전체 개수에 더해 skip overflow 유�
 
 
 @pytest.mark.api
-@pytest.mark.classroom
+@pytest.mark.classhome
 class TestClassroomList:
     """목록 API 공통 케이스."""
 

@@ -14,7 +14,7 @@ from utils.assertions.api_assertions import assert_valid_schema
 
 
 @pytest.mark.api
-@pytest.mark.classroom
+@pytest.mark.classhome
 @pytest.mark.learner
 class TestClassroomSummaryLearner:
     """GET /classroom/{class_id} — 학습자 토큰 접근 검증 (CH-020)."""
@@ -33,7 +33,7 @@ class TestClassroomSummaryLearner:
 
 
 @pytest.mark.api
-@pytest.mark.classroom
+@pytest.mark.classhome
 @pytest.mark.learner
 class TestStudentLearningLearner:
     """GET /student/{account_id} — 학습자 전용 (CH-022, CH-023, CH-028)."""

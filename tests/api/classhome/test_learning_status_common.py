@@ -14,7 +14,7 @@ NON_EXISTENT_ACCOUNT_ID = 999_999_999
 
 
 @pytest.mark.api
-@pytest.mark.classroom
+@pytest.mark.classhome
 class TestStudentLearningCommon:
     """GET /student/{account_id} — 학습자·교육자 공통 (CH-024~027)."""
 
