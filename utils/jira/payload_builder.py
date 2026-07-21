@@ -76,12 +76,20 @@ class JiraPayloadBuilder:
         Returns:
             dict[str, Any]: 조립이 완료된 페이로드 데이터 전송 객체
         """
+        # issue_type이 숫자로만 이뤄지면 ID(예: "10080"), 아니면 이름(예: "버그"/"Bug")으로 취급.
+        # ID는 이름이 현지화/변경돼도 안 바뀌므로 더 안전하다.
+        issuetype = (
+            {"id": self.issue_type}
+            if self.issue_type.isdigit()
+            else {"name": self.issue_type}
+        )
+
         return {
             "fields": {
                 "project": {"key": self.project_key},
                 "summary": self._build_summary(test_name),
                 "description": self._build_description(test_name, error_trace),
-                "issuetype": {"name": self.issue_type},
+                "issuetype": issuetype,
                 "labels": ["automation", "pytest", "nightly"]
             }
         }
