@@ -6,7 +6,7 @@ import os
 import pytest
 from dotenv import load_dotenv
 
-from api.utils.board_api import BoardApiClient
+from api.endpoints.board_api import BoardApiClient
 from api.utils.elice_auth import make_authenticated_session
 from utils.assertions.api_assertions import assert_board_fail, assert_board_ok
 
