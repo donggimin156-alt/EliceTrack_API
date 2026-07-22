@@ -1,5 +1,6 @@
 # fixtures/board_fixture.py
 """Elice 게시판(Board) API 전용 픽스처 — 인증·BoardApiClient·teardown 정리."""
+import base64
 import logging
 import os
 
@@ -15,6 +16,27 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 TARGET = os.getenv("TARGET", "dev").lower()
+
+
+# ── 게시판 테스트 공용 파라미터·데이터 (여러 test_board_*.py가 import해서 공유) ──
+# classhome_fixture(CLASSROOM_CLIENTS 등)와 동일하게, parametrize 상수는 픽스처 모듈에 둔다.
+
+# 공통 테스트의 역할(target) 파라미터. board 클라이언트 픽스처 이름으로 indirect 파라미터화한다.
+COMMON_TARGETS = [
+    pytest.param("prod_learner", marks=pytest.mark.learner, id="learner-prod"),
+    pytest.param("dev_educator", marks=pytest.mark.educator, id="educator-dev"),
+]
+
+# 2계정 cross-account 파라미터 (작성자, 행위자). prod은 타 계정 글 생성 불가 → dev 전용 2방향.
+CROSS_ACCOUNT_DEV = [
+    pytest.param("dev_learner", "dev_educator", id="learner_write-educator_act"),
+    pytest.param("dev_educator", "dev_learner", id="educator_write-learner_act"),
+]
+
+# 첨부 업로드 테스트용 1x1 PNG (67바이트)
+PNG_1x1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg=="
+)
 
 
 def _make_board_client(env_name: str, role: str, skip_msg: str) -> BoardApiClient:
@@ -73,7 +95,7 @@ def board(request) -> BoardApiClient:
     return request.getfixturevalue(request.param)
 
 
-# ── 검증 헬퍼 주입 (로직은 utils/assertions, class_fixture처럼 픽스처로 받아 사용) ──
+# ── 검증 헬퍼 주입 (로직은 utils/helpers, class_fixture처럼 픽스처로 받아 사용) ──
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-# utils/assertions/__init__.py
+# utils/helpers/__init__.py
 import warnings
 
 # 하위 모듈들의 함수들을 __init__.py 레벨로 끌어올려 외부에서 간편하게 import 하도록 지원합니다.

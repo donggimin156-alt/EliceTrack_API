@@ -1,4 +1,4 @@
-# utils/assertions/collection_assertions.py
+# utils/helpers/collection_assertions.py
 import logging
 from typing import Any, Iterable, Sized
 

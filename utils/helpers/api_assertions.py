@@ -1,4 +1,4 @@
-# utils/assertions/api_assertions.py
+# utils/helpers/api_assertions.py
 import json
 import logging
 from functools import lru_cache

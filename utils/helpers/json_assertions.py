@@ -1,4 +1,4 @@
-# utils/assertions/json_assertions.py
+# utils/helpers/json_assertions.py
 import logging
 from typing import Any
 
