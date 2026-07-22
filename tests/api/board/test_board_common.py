@@ -127,7 +127,7 @@ class TestBoardCommon:
           - fail_code == 'invalid_parameter'
           - 스키마: fail_code, fail_message, fail_detail 존재
         """
-        # title 제외, content/is_secret/classroom_id 만 지정
+        # raw 폼: title을 의도적으로 누락(타입 헬퍼로는 표현 불가한 음성 케이스)
         resp = board.create_article_raw({
             "content": "<p>내용</p>",
             "is_secret": "false",
@@ -152,7 +152,7 @@ class TestBoardCommon:
           - fail_code == 'invalid_parameter'
           - 스키마: fail_code, fail_message, fail_detail 존재
         """
-        # content 제외, title/is_secret/classroom_id 만 지정
+        # raw 폼: content를 의도적으로 누락(타입 헬퍼로는 표현 불가한 음성 케이스)
         resp = board.create_article_raw({
             "title": "제목만 있음",
             "is_secret": "false",
@@ -176,7 +176,7 @@ class TestBoardCommon:
           - fail_code == 'invalid_parameter'
           - 스키마: fail_code, fail_message, fail_detail 존재
         """
-        # is_secret 제외, title/content/classroom_id 만 지정
+        # raw 폼: is_secret을 의도적으로 누락(타입 헬퍼로는 표현 불가한 음성 케이스)
         resp = board.create_article_raw({
             "title": "제목",
             "content": "<p>내용</p>",
@@ -201,7 +201,7 @@ class TestBoardCommon:
           - 스키마: fail_code, fail_message, fail_detail 존재
         ※ 실측: 필수필드 누락(400/param)과 다른 에러 계열 — _result.status_code=409, reason='logic'.
         """
-        # classroom_id·board_id 모두 제외 (title/content/is_secret 만)
+        # raw 폼: classroom_id·board_id 둘 다 의도적으로 누락(타입 헬퍼로는 표현 불가한 음성 케이스)
         resp = board.create_article_raw({
             "title": "제목",
             "content": "<p>내용</p>",
@@ -280,6 +280,7 @@ class TestBoardCommon:
           - 스키마: fail_code, fail_message, fail_detail 존재
         (실측: fail_detail.invalid_params.title = "should be between 1 and 128 letters/elements")
         """
+        # raw 폼: title을 빈 문자열("")로 — 타입 헬퍼가 막지 못하는 경계값을 의도적으로 전송
         resp = board.create_article_raw({
             "title": "",
             "content": "<p>내용</p>",
@@ -305,6 +306,7 @@ class TestBoardCommon:
           → fail_detail.invalid_params.is_secret = "required" (TC의 'enum 위반' 설명과는 다름).
           핵심 판정(fail + invalid_parameter)은 TC와 동일하므로 그 기준으로 검증.
         """
+        # raw 폼: is_secret에 비boolean 값을 의도적으로 전송(타입 헬퍼로는 표현 불가)
         resp = board.create_article_raw({
             "title": "제목",
             "content": "<p>내용</p>",
