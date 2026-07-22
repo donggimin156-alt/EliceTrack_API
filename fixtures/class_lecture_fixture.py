@@ -1,68 +1,106 @@
-# tests/api/class_lecture/conftest.py
+# fixtures/class_lecture_fixture.py
 """
-학습과목 퀴즈(Quiz) 관련 테스트 공통 픽스처.
+학습과목 퀴즈(material_quiz) 관련 테스트 공통 픽스처.
+"""
 
-주의:
-- 아래 값들은 prod_learner 계정이 "실제로 소유한" 데이터를 기준으로 합니다.
-  계정/환경이 바뀌면 반드시 재검증이 필요합니다.
-- material_quiz_id는 quiz_response 응답 안에서 파싱하는 것이 이상적이지만,
-  API 응답 스키마에 따라 위치가 다를 수 있어 fallback 값을 함께 둡니다.
-  (valid_quiz_payload 픽스처의 "material_quiz_id_is_fallback" 플래그로
-  현재 fallback을 쓰고 있는지 테스트 쪽에서 인지할 수 있게 했습니다.)
-"""
-import sys
+import os
 import pytest
+from core.config import settings
 
-# ----------------------------------------------------------------------
-# Pydantic v2 설정 객체에 테스트 전용 속성을 동적으로 주입하는 로직.
-# 테스트 파일 상단이 아니라 conftest의 autouse 픽스처로 격리해서,
-# "테스트 실행 시점에 1회, 명시적으로" 적용되도록 합니다.
-# ----------------------------------------------------------------------
-@pytest.fixture(scope="session", autouse=True)
-def _patch_settings_for_test_env():
-    for mod_name, mod in list(sys.modules.items()):
-        if "setting" not in mod_name and "config" not in mod_name:
-            continue
+# settings 인스턴스에 elice_api_timeout이 없으면, api_timeout_sec 값으로 보정.
+if not hasattr(settings, "elice_api_timeout"):
+    object.__setattr__(settings, "elice_api_timeout", settings.api_timeout_sec)
 
-        settings_cls = getattr(mod, "Settings", None)
-        if settings_cls is not None and hasattr(settings_cls, "model_config"):
-            settings_cls.model_config["extra"] = "allow"
+# 퀴즈 테스트 공통 parametrize. board_fixture의 prod_learner를 그대로 사용.
+QUIZ_TARGETS = [
+    pytest.param("prod_learner", marks=pytest.mark.learner, id="prod-learner"),
+]
 
-        settings_obj = getattr(mod, "settings", getattr(mod, "setting", None))
-        if settings_obj is None:
-            continue
+# 팀 공통 기본 테스트 ID (필요시 실제 유효한 ID 값으로 수정)
+DEFAULT_QUIZ_RESPONSE_ID = 34109086
+DEFAULT_MATERIAL_QUIZ_ID = 614
 
-        try:
-            object.__setattr__(
-                settings_obj,
-                "elice_api_timeout",
-                getattr(settings_obj, "api_timeout_sec", 10),
-            )
-        except Exception:
-            # 설정 객체 구조가 다른 모듈이면 조용히 스킵
-            pass
 
-    yield
+def _int_env(var: str, default: int) -> int:
+    """환경변수를 int로 읽고, 설정되어 있지 않으면 기본값(default)을 사용"""
+    val = os.getenv(var, "").strip()
+    if not val:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+@pytest.fixture(scope="session")
+def prod_quiz_response_id() -> int:
+    """prod_learner 계정이 실제로 소유한, 진행 중/완료 상태를 오갈 수 있는 quiz_response_id.
+
+    PROD_QUIZ_RESPONSE_ID 미설정 시 기본값(DEFAULT_QUIZ_RESPONSE_ID) 사용.
+    """
+    return _int_env("PROD_QUIZ_RESPONSE_ID", default=DEFAULT_QUIZ_RESPONSE_ID)
+
+
+@pytest.fixture(scope="session")
+def prod_completed_quiz_response_id(prod_quiz_response_id) -> int:
+    """제출 완료(is_completed=true) 상태인 quiz_response_id.
+
+    PROD_COMPLETED_QUIZ_RESPONSE_ID가 별도로 없으면 prod_quiz_response_id를 그대로 사용한다.
+    """
+    val = os.getenv("PROD_COMPLETED_QUIZ_RESPONSE_ID", "").strip()
+    return int(val) if val else prod_quiz_response_id
+
+
+@pytest.fixture(scope="session")
+def prod_material_quiz_id(prod_quiz_response_id, prod_learner) -> int:
+    """PROD_MATERIAL_QUIZ_ID가 없으면 quiz_response_id 조회를 통해 실제 material_quiz_id를 자동으로 가져와 사용한다."""
+    env_val = os.getenv("PROD_MATERIAL_QUIZ_ID", "").strip()
+    if env_val:
+        return int(env_val)
+    
+    # .env에 없으면 actual quiz_response 조회 응답에서 material_quiz_id 추출
+    resp = get_quiz_response(prod_learner, prod_quiz_response_id)
+    if resp.status_code == 200:
+        data = resp.json()
+        quiz_resp = data.get("quiz_response", {})
+        # 응답 구조에 맞게 material_quiz_id 또는 quiz.id 반환
+        if "material_quiz_id" in quiz_resp:
+            return quiz_resp["material_quiz_id"]
+        elif "material_quiz" in quiz_resp and "id" in quiz_resp["material_quiz"]:
+            return quiz_resp["material_quiz"]["id"]
+            
+    # 자동 추출 실패 시 fallback 기본값 사용
+    return DEFAULT_MATERIAL_QUIZ_ID
 
 
 @pytest.fixture(scope="function")
-def valid_quiz_payload():
-    """prod_learner 계정이 실제 소유한 유효한 퀴즈 응답 데이터."""
-    return {
-        # prod_learner 계정이 실제로 소유한, 검증된 quiz_response_id
-        "quiz_response_id": 34109086,
-        # 동일 ID를 재사용: "이미 완료된 상태"의 테스트도 이 응답으로 커버 가능
-        "completed_quiz_response_id": 34109086,
-        "course_id": 158,
-        "lecture_id": 614,
-        # ⚠️ 검증되지 않은 fallback 값. GET 응답에서 실제 material_quiz_id를
-        # 파싱하지 못했을 때만 사용해야 하며, 테스트 결과 해석 시
-        # "이 값이 fallback인지" 반드시 함께 고려할 것.
-        "material_quiz_id_fallback": 929,
-    }
-
-
-@pytest.fixture(scope="function")
-def invalid_quiz_response_id():
+def invalid_quiz_response_id() -> int:
     """존재하지 않는 퀴즈 응답 ID (404/400 예외 케이스용)."""
     return 99999999
+
+
+# ==========================================================================
+# 퀴즈 API 호출 헬퍼
+# ==========================================================================
+
+def get_quiz_response(board, quiz_response_id: int):
+    """퀴즈 응답 결과 단건조회 (material_quiz/response/get)."""
+    return board.get("material_quiz/response/get/", params={"quiz_response_id": quiz_response_id})
+
+
+def get_quiz_response_raw(board, params: dict | None = None):
+    """퀴즈 응답 결과 조회 원본 호출 (필수 파라미터 누락 등 음성 테스트용)."""
+    return board.get("material_quiz/response/get/", params=params or {})
+
+
+def select_quiz_option(board, quiz_response_id: int, material_quiz_id: int, selected_option_index: int):
+    """퀴즈 보기 선택 (material_quiz/options_set/select)."""
+    return board.post("material_quiz/options_set/select/", data={
+        "quiz_response_id": quiz_response_id,
+        "material_quiz_id": material_quiz_id,
+        "selected_option_index": selected_option_index,
+    })
+
+
+def select_quiz_option_raw(board, data: dict):
+    """퀴즈 보기 선택 원본 호출 (음성/경계 테스트용 임의 payload)."""
+    return board.post("material_quiz/options_set/select/", data=data)

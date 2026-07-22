@@ -15,7 +15,7 @@ pytest_plugins = [
     "hooks.debug_hook",
     "hooks.jira_hook",
     "hooks.slack_hook",
-    # "hooks.discord_hook", 
+    "hooks.discord_hook", 
     
     # 2. Fixtures (테스트 실행 전/후 의존성 주입 객체)
     "fixtures.api_fixture",
