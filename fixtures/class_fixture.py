@@ -1,13 +1,27 @@
 # fixtures/class_fixture_v2.py
 """Classroom Course API 전용 픽스처 — v2 리팩토링 버전."""
 
+import logging
+
 import pytest
 import requests
 
 from api.endpoints.class_api import ClassApi
+from api.schemas.class_schema import ClassSchemas
+from core.config import settings
 from api.utils.elice_auth import get_env_config, make_authenticated_session
+from utils.helpers.api_assertions import assert_valid_schema
+from utils.helpers.class_helper import (
+    assert_task_completed,
+    cleanup_resource_if_exists,
+    wait_until_task_completed,
+)
+
+logger = logging.getLogger(__name__)
 
 ENV_NAME = "prod"
+BULK_ADD_COURSE_ID = settings.elice_environments["dev"]["BULK_ADD_COURSE_ID"]
+BULK_ADD_EXPECTED_RESULT = {"course_attached": "completed"}
 
 # E5/E6 엣지 케이스용: 형식은 유효하지만 실존하지 않는 classroom_id / UUID 형식 자체가 아닌 값
 NONEXISTENT_BUT_VALID_UUID = "00000000-0000-0000-0000-000000000000"
@@ -203,3 +217,60 @@ def wait_for_task_completion(assert_response):
         )
 
     return _wait
+
+@pytest.fixture
+def track_bulk_added_courses(educator_class_api):
+    """bulk add로 강의실에 추가된 course_id를 테스트 종료 후 자동 삭제(teardown)한다.
+ 
+    board_fixture.py의 track_articles와 동일한 패턴(등록 -> yield -> 역순 정리)에
+    "삭제 전 존재 확인"만 helper.cleanup_resource_if_exists로 추가한 버전이다.
+    """
+    added: list[int] = []
+    yield added
+    for course_id in reversed(added):
+        cleanup_resource_if_exists(
+            exists_check_fn=lambda cid=course_id: educator_class_api.get_course(cid).status_code == 200,
+            delete_fn=lambda cid=course_id: educator_class_api.delete_course(cid),
+            resource_label=f"course_id={course_id}",
+        )
+ 
+ 
+@pytest.fixture
+def bulk_add_task_id(educator_class_api, assert_response, track_bulk_added_courses):
+    """course_ids 리스트로 bulk add를 요청하고 task_id를 반환하는 팩토리 픽스처.
+ 
+    요청에 사용한 course_id들은 (task 성공 여부와 무관하게) track_bulk_added_courses에
+    등록된다. 실제 정리 시점에는 존재 여부를 확인한 뒤에만 삭제하므로, task가 아직
+    끝나지 않은 상태로 테스트가 종료돼도 안전하다.
+ 
+    사용: task_id = bulk_add_task_id([course_id, ...])
+    """
+ 
+    def _create(course_ids: list[int]) -> str:
+        resp = educator_class_api.add_courses_bulk(course_ids)
+        data = assert_response(resp, 200)
+        assert set(data.keys()) == {"task_id"}, f"Expected only 'task_id' key but got {data.keys()}"
+        assert isinstance(data["task_id"], str) and data["task_id"], (
+            f"Expected non-empty str task_id but got {data['task_id']!r}"
+        )
+        track_bulk_added_courses.extend(course_ids)
+        return data["task_id"]
+ 
+    return _create
+ 
+ 
+@pytest.fixture
+def completed_bulk_add_task(educator_class_api, bulk_add_task_id):
+    """단일 과목(BULK_ADD_COURSE_ID) bulk add 요청 후 completed 상태까지 대기한
+    (task_id, 최종 task 응답) 튜플.
+ 
+    여러 테스트에서 반복되는 '제출 -> 완료 대기 -> schema/status 검증' 흐름을
+    한 곳에 캡슐화한다. 이 픽스처를 쓰는 테스트는 완료를 이미 확인했으므로
+    teardown에서 존재 확인이 즉시 통과해 추가 대기 없이 바로 정리된다.
+    """
+    task_id = bulk_add_task_id([BULK_ADD_COURSE_ID])
+    final = wait_until_task_completed(educator_class_api, task_id)
+    assert_valid_schema(final, ClassSchemas.TASK_SCHEMA)
+    assert_task_completed(final, expected_result=BULK_ADD_EXPECTED_RESULT)
+    return task_id, final
+ 

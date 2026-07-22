@@ -8,7 +8,7 @@ import jsonschema
 from jsonschema import Draft202012Validator
 from requests import Response
 
-from utils.assertions.base import AssertionFailure, _fail, _format_json
+from .base import AssertionFailure, _fail, _format_json
 
 logger = logging.getLogger(__name__)
 
