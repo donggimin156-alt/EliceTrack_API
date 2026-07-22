@@ -63,6 +63,22 @@ class Settings(BaseSettings):
     elice_prod_board_id: str = Field(default="10187", validation_alias="PROD_BOARD_ID")
     elice_prod_others_article_id: str = Field(default="78933", validation_alias="PROD_OTHERS_ARTICLE_ID")
 
+    elice_prod_progress_course_id: int = Field(
+        default=776040, validation_alias="PROD_PROGRESS_COURSE_ID"
+    )
+
+    elice_prod_cohort_id: str = Field(
+        default="71efc017-93a4-4358-a08b-cb5f12a97dbb", validation_alias="PROD_COHORT_ID"
+    )
+
+    # --- 교육자 리포트(E-11) / 과목 추가(E-12) : dev 고정 ---
+    elice_dev_report_elice_course_id: int = Field(
+        default=43, validation_alias="DEV_REPORT_COURSE_ID"
+    )
+    elice_dev_bulk_add_course_id: int = Field(
+        default=17, validation_alias="DEV_BULK_ADD_COURSE_ID"
+    )
+
     # ==========================================
     # 3. 동적/계산된 속성 (Computed Properties)
     # ==========================================
@@ -99,6 +115,8 @@ class Settings(BaseSettings):
                 "CLASSROOM_ID": self.elice_dev_classroom_id,
                 "BOARD_ID": self.elice_dev_board_id,
                 "OTHERS_ARTICLE_ID": self.elice_dev_others_article_id,
+                "REPORT_ELICE_COURSE_ID": self.elice_dev_report_elice_course_id,
+                "BULK_ADD_COURSE_ID": self.elice_dev_bulk_add_course_id,
             },
             "prod": {
                 "REST_API_URL": "https://api-rest.elice.io",
@@ -109,6 +127,8 @@ class Settings(BaseSettings):
                 "CLASSROOM_ID": self.elice_prod_classroom_id,
                 "BOARD_ID": self.elice_prod_board_id,
                 "OTHERS_ARTICLE_ID": self.elice_prod_others_article_id,
+                "COHORT_ID": self.elice_prod_cohort_id,
+                "PROGRESS_COURSE_ID": self.elice_prod_progress_course_id,
             },
         }
 

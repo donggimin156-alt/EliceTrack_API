@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Iterable, Sized
 
-from utils.helpers.base import _fail
+from .base import _fail
 
 logger = logging.getLogger(__name__)
 

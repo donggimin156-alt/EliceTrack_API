@@ -2,11 +2,11 @@
 import warnings
 
 # 하위 모듈들의 함수들을 __init__.py 레벨로 끌어올려 외부에서 간편하게 import 하도록 지원합니다.
-# 권장 사용 예: from utils.helpers import assert_equal, assert_status_code
-from utils.helpers.api_assertions import assert_status_code, assert_valid_schema
-from utils.helpers.collection_assertions import assert_contains, assert_empty, assert_list_length
-from utils.helpers.common_assertions import assert_equal, assert_false, assert_not_none, assert_true
-from utils.helpers.json_assertions import assert_json_value, assert_key_exists
+# 권장 사용 예: from utils.assertions import assert_equal, assert_status_code
+from .api_assertions import assert_status_code, assert_valid_schema
+from .collection_assertions import assert_contains, assert_empty, assert_list_length
+from .common_assertions import assert_equal, assert_false, assert_not_none, assert_true
+from .json_assertions import assert_json_value, assert_key_exists
 
 __all__ = [
     "assert_status_code",

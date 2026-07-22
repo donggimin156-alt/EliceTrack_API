@@ -22,4 +22,5 @@ pytest_plugins = [
     "fixtures.class_fixture",
     "fixtures.schedule_fixture",
     "fixtures.classhome_fixture",
+    "fixtures.dashboard_fixture",
 ]

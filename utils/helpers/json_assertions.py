@@ -2,7 +2,7 @@
 import logging
 from typing import Any
 
-from utils.helpers.base import _MISSING, _fail, _get_nested_value
+from .base import _MISSING, _fail, _get_nested_value
 
 logger = logging.getLogger(__name__)
 
