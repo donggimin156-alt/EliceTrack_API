@@ -10,6 +10,22 @@ logger = logging.getLogger(__name__)
 
 # 중복 이슈 생성 억제를 위한 인메모리 캐시 셋 (Deduplication)
 _reported_issues: set[str] = set()
+# 동일 XPASS(버그 수정 추정) 알림을 세션당 1회만 남기기 위한 캐시
+_xpass_notified: set[str] = set()
+
+
+def _compose_trace(rep: TestReport) -> str:
+    """실패 리포트에서 스택 트레이스 + 캡처된 로그(api_logger의 HTTP 요청/응답)를 합쳐 반환합니다.
+
+    Captured log 섹션에는 요청 URL·메서드·헤더·payload(Request Data)와 응답 바디가 담겨 있어
+    Jira 버그 리포트만 보고도 원인(어떤 요청에 어떤 응답)이 추적 가능해진다.
+    """
+    parts = [rep.longreprtext or "No Traceback"]
+    for title, content in getattr(rep, "sections", []):
+        # 로그/표준출력 캡처만 포함(불필요한 빈 섹션은 제외)
+        if content and content.strip() and ("log" in title.lower() or "stdout" in title.lower()):
+            parts.append(f"----- {title} -----\n{content.strip()}")
+    return "\n\n".join(parts)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -32,14 +48,50 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> Gener
             return
         _reported_issues.add(item.nodeid)
 
-        error_trace = rep.longreprtext if rep.longreprtext else "No Traceback"
-        logger.info(f"🎫 Jira 자동 버그 티켓 생성 트리거됨: {item.name}")
-        
+        # 스택 트레이스 + 캡처된 HTTP 요청/응답 로그를 함께 담아 원인 추적을 돕는다.
+        error_trace = _compose_trace(rep)
+
+        # @pytest.mark.jira("EQA-5") 로 이 테스트가 추적하는 이슈 키를 읽는다.
+        jira_marker = item.get_closest_marker("jira")
+        issue_key = jira_marker.args[0] if (jira_marker and jira_marker.args) else None
+
         try:
             # Lazy Import: 모듈 순환 참조를 방지하고, Jira 기능이 꺼져있을 때 불필요한 패키지 로딩을 막습니다.
             from utils.jira import JiraClient
-            
+
             jira = JiraClient()
-            jira.create_bug_ticket(test_name=item.name, error_trace=error_trace)
+            if issue_key:
+                # 추적 대상 이슈가 있으면 새 티켓 대신 기존 이슈에 실패 이력을 댓글로 남긴다(중복 티켓 방지).
+                logger.info(f"🎫 Jira 이슈 {issue_key} 에 실패 코멘트 추가: {item.name}")
+                jira.add_comment(issue_key=issue_key, test_name=item.name, error_trace=error_trace)
+            else:
+                # 추적 이슈가 없으면 기존처럼 새 버그 티켓을 생성한다.
+                logger.info(f"🎫 Jira 자동 버그 티켓 생성 트리거됨: {item.name}")
+                jira.create_bug_ticket(test_name=item.name, error_trace=error_trace)
         except Exception as e:
-            logger.exception(f"[Jira Hook] 버그 티켓 자동 생성 중 시스템 오류 발생: {e}")
+            logger.exception(f"[Jira Hook] Jira 연동 중 시스템 오류 발생: {e}")
+
+    # XPASS 감지: xfail(알려진 버그)로 표시된 테스트가 예상외로 통과하면 버그가 고쳐졌을 가능성이 높다.
+    # 추적 이슈(@pytest.mark.jira)가 있으면 "수정된 듯" 알림 댓글을 남겨 사람이 확인 후 이슈를 닫도록 한다.
+    is_xpass = rep.when == "call" and rep.passed and getattr(rep, "wasxfail", None) is not None
+
+    if is_xpass and is_jira_enabled:
+        jira_marker = item.get_closest_marker("jira")
+        issue_key = jira_marker.args[0] if (jira_marker and jira_marker.args) else None
+        if not issue_key or item.nodeid in _xpass_notified:
+            return
+        _xpass_notified.add(item.nodeid)
+
+        try:
+            from utils.jira import JiraClient
+
+            note = (
+                f"✅ *XPASS 감지 — 버그가 수정되었을 가능성이 높습니다.*\n\n"
+                f"* 테스트: {item.name}\n"
+                f"* 이 테스트는 이 이슈의 버그를 재현(xfail)하도록 표시돼 있었으나, 이번 실행에서 통과했습니다.\n"
+                f"* 수정 여부를 확인한 뒤 이슈를 닫고, 테스트의 xfail 표시를 제거해 회귀 테스트로 전환하세요."
+            )
+            logger.info(f"✅ Jira 이슈 {issue_key} 에 XPASS(수정 추정) 알림: {item.name}")
+            JiraClient().add_note(issue_key=issue_key, note=note)
+        except Exception as e:
+            logger.exception(f"[Jira Hook] XPASS 알림 중 시스템 오류 발생: {e}")
