@@ -37,3 +37,30 @@ class DashboardAPI(NoTokenClient):
             return self._no_auth_get(f"/student/{account_id}", params=params)
         return self.get(f"/student/{account_id}", params=params)
 
+    def get_student_progress(
+        self,
+        account_id: int,
+        classroom_id: str,
+        course_id: int,
+        filter_cohort_id: str,
+    ) -> requests.Response:
+        """GET /student/{account_id} — 학습자 본인 학습현황 상세 (L-06~L-09)"""
+        return self.get(
+            f"/student/{account_id}",
+            params={
+                "classroom_id": classroom_id,
+                "course_id": course_id,
+                "filter_cohort_id": filter_cohort_id,
+            },
+        )
+
+    def get_course_report_token(
+        self,
+        course_id: int,
+        elice_course_id: int,
+    ) -> requests.Response:
+        """GET /course/{course_id}/report — 학습현황 엑셀 다운로드 토큰 발급 (E-11, 교육자)"""
+        return self.get(
+            f"/course/{course_id}/report",
+            params={"elice_course_id": elice_course_id},
+        )
