@@ -1,9 +1,13 @@
 # fixtures/schedule_fixture.py
 """Elice 수업일정(Schedule) 전용 API 픽스처 — 사전 준비(인증·세션·클라이언트·조회 파라미터)만 담당"""
+import logging
+
 import pytest
 
 from api.endpoints import schedule_api as schedule
 from api.utils.elice_auth import make_authenticated_session
+
+logger = logging.getLogger(__name__)
 
 
 def _make_schedule_client(env_name: str, role: str, skip_msg: str) -> schedule.ScheduleAPI:
@@ -41,12 +45,23 @@ def schedule_course_id() -> int:
 
 @pytest.fixture(scope="session")
 def schedule_dev_attached_course_id(schedule_dev_educator: schedule.ScheduleAPI) -> int:
-    """dev 서버에서 course_id 생성용
+    """dev bulk로 확보한 course_id — session 종료 시 DELETE로 classroom에서 제거
 
-    세션 시작 시 한 번 bulk → REST course/get·해피 TC 등에 넘길 숫자 id
-    운영 prod classroom 과목과 무관
+    setup: resolve_dev_attached_course_id (CS-AUTH-02 dev course/get 등)
+    teardown: DELETE /classroom/{id}/course/{course_id}, 기대 HTTP 200
     """
     try:
-        return schedule.resolve_dev_attached_course_id(schedule_dev_educator)
+        course_id = schedule.resolve_dev_attached_course_id(schedule_dev_educator)
     except (TimeoutError, ValueError) as e:
         pytest.fail(f"dev schedule용 course_id 확보 실패: {e}")
+
+    yield course_id
+
+    try:
+        schedule.teardown_dev_attached_course(schedule_dev_educator, course_id)
+    except Exception as e:
+        logger.warning(
+            "schedule_dev_attached_course_id teardown 실패 (course_id=%s): %s",
+            course_id,
+            e,
+        )

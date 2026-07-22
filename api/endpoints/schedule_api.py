@@ -87,6 +87,17 @@ class ScheduleAPI(BaseAPIClient):
         }
         return self.get(self.BASE_PATH, params=params, **kwargs)
 
+    def delete_classroom_course(self, course_id: int, **kwargs: Any) -> requests.Response:
+        """ 과목 삭제 api 호출(teardown용)
+        DELETE /classroom/{classroom_id}/course/{course_id} — classroom에서 과목 분리 (dev bulk teardown)
+
+        명세: path course_id는 integer. x-elice-org-name-short 필수 → client.org 명시.
+        """
+        path = f"/classroom/{self.classroom_id}/course/{course_id}"
+        headers = dict(kwargs.pop("headers", {}))
+        headers["x-elice-org-name-short"] = self.org
+        return self.delete(path, headers=headers, **kwargs)
+
     def raw(
         self,
         method: str,
@@ -247,6 +258,16 @@ def resolve_dev_attached_course_id(
     return new_ids.pop()
 
 
+def teardown_dev_attached_course(client: ScheduleAPI, course_id: int) -> None:
+    """bulk로 붙인 dev classroom 과목 삭제 — pytest session teardown용 (HTTP 200, body {})."""
+    resp = client.delete_classroom_course(course_id)
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"DELETE /classroom/.../course/{course_id} failed: "
+            f"status={resp.status_code}, body={resp.text!r}"
+        )
+
+
 def current_month_range() -> tuple[str, str]:
     """오늘 기준 이번 달 1일~말일을 ISO 8601 datetime(밀리초 + UTC "Z")로 반환."""
     today = date.today()
@@ -277,11 +298,14 @@ def extract_date(value: str) -> str:
 
 
 def item_active_date_range(item: dict[str, Any], query_end_date: str) -> tuple[str, str]:
-    """item이 실제로 존재(활성)하는 기간을 [시작일, 종료일](YYYY-MM-DD)로 계산한다.
+    """item의 dt_start·dt_end·rrule.until만으로 [시작일, 종료일] 구간을 잡는다 (CS-001 overlap 검증용)
 
-    - 반복일정(rrule) + until 있음: [dt_start, until]
-    - 반복일정 + until 없음: [dt_start, query_end_date]
-    - 단발성 일정: [dt_start, dt_end]
+    서버 GET /schedule은 exdate가 조회 구간에 걸리면 item을
+    내려줄 수 있어서 이 함수 구간과 '왜 이번 달 목록에 있나'가 어긋날 수 있음 (prod CS-001 이슈 #6).
+
+    - 반복 + until: [dt_start, until]
+    - 반복 + until 없음: [dt_start, query_end_date]
+    - 단발: [dt_start, dt_end]
     """
     start = extract_date(item["dt_start"])
     rrule = item.get("rrule")
