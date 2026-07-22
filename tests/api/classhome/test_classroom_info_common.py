@@ -9,7 +9,7 @@ import pytest
 from api.endpoints.classhome.classroom_api import ClassroomAPI
 from api.schemas.classhome_schema import ClasshomeSchemas
 from fixtures.classhome_fixture import CLASSROOM_CLIENTS
-from utils.assertions.api_assertions import assert_200, assert_valid_schema
+from utils.helpers.api_assertions import assert_200, assert_valid_schema
 
 # ── 경계값 상수 ───────────────────────────────────────────────
 VALID_SKIP = 0

@@ -1,4 +1,4 @@
-# utils/assertions/api_assertions.py
+# utils/helpers/api_assertions.py
 import json
 import logging
 from functools import lru_cache
@@ -8,7 +8,7 @@ import jsonschema
 from jsonschema import Draft202012Validator
 from requests import Response
 
-from utils.assertions.base import AssertionFailure, _fail, _format_json
+from utils.helpers.base import AssertionFailure, _fail, _format_json
 
 logger = logging.getLogger(__name__)
 

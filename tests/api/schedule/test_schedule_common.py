@@ -10,7 +10,7 @@ import pytest
 
 from api.endpoints import schedule_api as schedule # 수업일정 API 엔드포인트 및 헬퍼 함수
 from api.schemas import schedule_schema as schedule_schemas # 수업일정 스키마 정의
-from utils import assertions # 검증 도구
+from utils import helpers # 검증 도구
 
 SCHEDULE_TARGETS = [    # 수업일정 API 테스트 대상 역할 픽스처 매칭용
     pytest.param("schedule_prod_learner", marks=pytest.mark.learner, id="CS-001-learner-prod"),
@@ -66,7 +66,7 @@ class TestScheduleCommon:
         )
         
         # 수업 일정 스키마 검증
-        assertions.assert_valid_schema(body, schedule_schemas.ScheduleSchemas.SCHEDULE_LIST_SCHEMA)
+        helpers.assert_valid_schema(body, schedule_schemas.ScheduleSchemas.SCHEDULE_LIST_SCHEMA)
 
         # API한테 보냈었던 조회 기간 꼭다리 뗀 것
         query_start = query.query_start_date

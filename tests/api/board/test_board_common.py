@@ -13,7 +13,7 @@ import base64
 import pytest
 
 from api.schemas.board_schema import BoardSchemas
-from utils.assertions.api_assertions import assert_valid_schema
+from utils.helpers.api_assertions import assert_valid_schema
 
 # 첨부 업로드 테스트용 1x1 PNG (67바이트)
 _PNG_1x1 = base64.b64decode(
