@@ -9,7 +9,7 @@ import pytest
 
 from api.endpoints.classhome.dashboard_api import DashboardAPI
 from api.schemas.classhome_schema import DashboardSchemas
-from utils.assertions.api_assertions import assert_valid_schema
+from utils.helpers.api_assertions import assert_valid_schema
 
 NON_EXISTENT_CLASS_ID = "00000000-0000-0000-0000-000000000000"
 

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from api.endpoints.board_api import BoardApiClient
 from api.utils.elice_auth import make_authenticated_session
-from utils.assertions.api_assertions import assert_board_fail, assert_board_ok
+from utils.helpers.api_assertions import assert_board_fail, assert_board_ok
 
 load_dotenv()
 
@@ -73,7 +73,7 @@ def board(request) -> BoardApiClient:
     return request.getfixturevalue(request.param)
 
 
-# ── 검증 헬퍼 주입 (로직은 utils/assertions, class_fixture처럼 픽스처로 받아 사용) ──
+# ── 검증 헬퍼 주입 (로직은 utils/helpers, class_fixture처럼 픽스처로 받아 사용) ──
 
 
 @pytest.fixture
