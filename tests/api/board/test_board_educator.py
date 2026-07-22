@@ -2,8 +2,6 @@
 """게시판 교육자(기관 관리자) 전용 API 테스트 — 교육자 계정에서만 허용·제한되는 기능."""
 import pytest
 
-from api.utils.board_api import BoardApiClient
-
 
 @pytest.mark.api
 @pytest.mark.board

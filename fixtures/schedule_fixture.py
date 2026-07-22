@@ -40,5 +40,5 @@ def schedule_dev_educator() -> schedule.ScheduleAPI:
 
 @pytest.fixture(scope="function")
 def schedule_query_params() -> schedule.ScheduleQueryParams:
-    """CS-001 등 기간 조회 TC에 사용할 dt_start_ge/le, count 파라미터."""
+    """CS-001 등 기간 조회 TC에 사용할 dt_start_ge/le, count 파라미터"""
     return schedule.resolve_schedule_query_params()
