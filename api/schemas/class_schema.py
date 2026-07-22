@@ -52,3 +52,13 @@ class ClassSchemas:
         },
         "required": ["progress", "total_material_cnt", "completed_material_cnt"],
     }
+
+    TASK_SCHEMA: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "status": {"type": "string"},
+            "result": {},
+        },
+        "required": ["id", "status", "result"],
+    }

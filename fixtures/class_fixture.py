@@ -168,3 +168,38 @@ def other_account_class_api(class_api, class_api_factory):
         role="LEARNER_OTHER_ACCOUNT",
         skip_msg="다른 계정 인증 정보(LEARNER_OTHER_ACCOUNT)가 준비되지 않아 스킵",
     )
+
+@pytest.fixture(scope="session")
+def educator_class_api(class_api_factory) -> ClassApi:
+    """dev 교육자용 ClassApi — 과목 추가(bulk)/순서 변경 등 교육자 전용 액션에 사용."""
+    return class_api_factory(
+        env_name="dev",
+        role="EDUCATOR",
+        skip_msg="dev 교육자 토큰 없음 (DEV_EDUCATOR_TOKEN)",
+    )
+
+
+@pytest.fixture
+def wait_for_task_completion(assert_response):
+    """status가 terminal 상태(completed/failed)에 도달할 때까지 폴링.
+
+    실증된 전이: queued -> assigned -> completed (완료 후 재조회해도 동일 응답, 멱등 확인됨)
+    failed 상태는 아직 미실증 — 확인되면 이 주석과 E-12e 갱신 필요.
+    """
+    import time
+
+    def _wait(class_api, task_id: str, timeout: float = 15.0, interval: float = 1.0):
+        terminal_statuses = ("completed", "failed")
+        deadline = time.monotonic() + timeout
+        last_data = None
+        while time.monotonic() < deadline:
+            resp = class_api.get_task(task_id)
+            last_data = assert_response(resp, 200)
+            if last_data["status"] in terminal_statuses:
+                return last_data
+            time.sleep(interval)
+        raise TimeoutError(
+            f"task {task_id}가 {timeout}s 내에 완료 상태에 도달하지 못함. 마지막 응답: {last_data}"
+        )
+
+    return _wait
