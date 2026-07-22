@@ -1,8 +1,8 @@
-# utils/assertions/json_assertions.py
+# utils/helpers/json_assertions.py
 import logging
 from typing import Any
 
-from utils.assertions.base import _MISSING, _fail, _get_nested_value
+from utils.helpers.base import _MISSING, _fail, _get_nested_value
 
 logger = logging.getLogger(__name__)
 
