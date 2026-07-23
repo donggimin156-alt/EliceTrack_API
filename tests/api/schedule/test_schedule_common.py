@@ -11,6 +11,7 @@ import pytest
 from api.endpoints import schedule_api as schedule # 수업일정 API 엔드포인트 및 헬퍼 함수
 from api.schemas import schedule_schema as schedule_schemas # 수업일정 스키마 정의
 from utils import helpers # 검증 도구
+from utils.helpers.class_helper import assert_detail_error
 
 # CS-001 prod 학습자 xfail — GET /schedule 반복 일정 기간 필드 vs exdate 포함 기준 (GitLab #6)
 CS001_PROD_SCHEDULE_ISSUE = (
@@ -84,6 +85,19 @@ COURSE_GET_OK_JSON_EXPECTATIONS = (
     ("_result.status", "ok"),
     ("_result.status_code", 200),
 )
+
+# CS-PARAM-01~04 — GET /schedule 필수 query 1개씩 누락 (CS-001 query·Bearer O, prod/dev 각 2 row → 8 runs)
+SCHEDULE_PARAM_OMIT_FIELDS = [
+    pytest.param("classroom_id", id="CS-PARAM-01"),
+    pytest.param("dt_start_ge", id="CS-PARAM-02"),
+    pytest.param("dt_start_le", id="CS-PARAM-03"),
+    pytest.param("count", id="CS-PARAM-04"),
+]
+
+SCHEDULE_PARAM_CLIENTS = [
+    pytest.param("schedule_prod_learner", marks=pytest.mark.learner, id="learner-prod"),
+    pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="educator-dev"),
+]
 
 
 @pytest.mark.api
@@ -160,7 +174,41 @@ class TestScheduleCommon:
                 f"요청 기간({query_start}~{query_end})과 겹치지 않음 "
                 f"(item id={item.get('id')})"
             )
-    @pytest.mark.smoke
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    @pytest.mark.parametrize("omit_field", SCHEDULE_PARAM_OMIT_FIELDS)
+    def test_CS_PARAM_01_04(
+        self,
+        request,
+        client_fixture: str,
+        omit_field: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-PARAM-01~04] GET /schedule — 필수 query 1개 누락 시 422 및 detail 검증
+
+        CS-001과 동일 Bearer·query 값에서 omit_field 키만 보내지 않음 (get_schedule 미사용).
+        prod 학습자 / dev 교육자. 기대: 422, detail 1건, type missing, msg Field required,
+        loc query + omit_field.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+        params = {
+            "classroom_id": client.classroom_id,
+            "dt_start_ge": query.dt_start_ge,
+            "dt_start_le": query.dt_start_le,
+            "count": query.count,
+        }
+        del params[omit_field]
+
+        resp = client.get(schedule.ScheduleAPI.BASE_PATH, params=params)
+
+        helpers.assert_status_code(resp, 422)
+        body = resp.json()
+        assert not isinstance(body, list), "파라미터 누락 시 일정 JSON 배열이 반환되면 안 됨"
+        helpers.assert_list_length(body["detail"], 1)
+        assert_detail_error(body, "missing", ["query", omit_field])
+        helpers.assert_json_value(body, "detail[0].msg", "Field required")
+
     @pytest.mark.parametrize("client_fixture", AUTH_01_SCHEDULE_TARGETS)
     def test_CS_AUTH_01(
         self,
@@ -193,7 +241,7 @@ class TestScheduleCommon:
         helpers.assert_json_value(body, "code", "no_access_token")
         assert not isinstance(body, list), "인증 없이 일정 배열이 반환되면 안 됨"
 
-    @pytest.mark.smoke
+
     @pytest.mark.parametrize("client_fixture,course_id_fixture", AUTH_02_COURSE_GET_TARGETS)
     def test_CS_AUTH_02(
         self,
