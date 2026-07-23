@@ -64,6 +64,27 @@ COURSE_GET_AUTH_JSON_EXPECTATIONS = (
     ("fail_code", "insufficient_permission"),
 )
 
+# CS-002 — REST GET course/get, Bearer 있음 (course_id row는 CS-AUTH-02와 동일)
+CS_002_COURSE_GET_TARGETS = [
+    pytest.param(
+        "schedule_prod_learner",
+        "schedule_course_id",
+        marks=pytest.mark.learner,
+        id="CS-002-course-get-learner-prod",
+    ),
+    pytest.param(
+        "schedule_dev_educator",
+        "schedule_dev_attached_course_id",
+        marks=pytest.mark.educator,
+        id="CS-002-course-get-educator-dev",
+    ),
+]
+
+COURSE_GET_OK_JSON_EXPECTATIONS = (
+    ("_result.status", "ok"),
+    ("_result.status_code", 200),
+)
+
 
 @pytest.mark.api
 @pytest.mark.schedule
@@ -194,3 +215,28 @@ class TestScheduleCommon:
         body = resp.json()
         for path, expected in COURSE_GET_AUTH_JSON_EXPECTATIONS:
             helpers.assert_json_value(body, path, expected)
+
+    @pytest.mark.p0
+    @pytest.mark.parametrize("client_fixture,course_id_fixture", CS_002_COURSE_GET_TARGETS)
+    def test_CS_002(
+        self,
+        request,
+        client_fixture: str,
+        course_id_fixture: str,
+    ):
+        """[CS-002] REST GET course/get — Authorization 포함 시 코스 상세 정상 응답
+
+        prod/dev REST 호스트·course_id는 row별 픽스처(CS-AUTH-02와 동일 row).
+        기대값: HTTP 200, _result ok/200, course.id == 요청 course_id, 공통 골격 스키마.
+        """
+        client = request.getfixturevalue(client_fixture)
+        course_id = request.getfixturevalue(course_id_fixture)
+        rest = schedule.ScheduleRestAPI.from_schedule_client(client)
+        resp = rest.get_course(course_id)
+
+        helpers.assert_status_code(resp, 200)
+        body = resp.json()
+        for path, expected in COURSE_GET_OK_JSON_EXPECTATIONS:
+            helpers.assert_json_value(body, path, expected)
+        helpers.assert_json_value(body, "course.id", int(course_id))
+        helpers.assert_valid_schema(body, schedule_schemas.ScheduleSchemas.COURSE_GET_RESPONSE_SCHEMA)
