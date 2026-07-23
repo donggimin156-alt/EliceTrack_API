@@ -87,16 +87,48 @@ class ScheduleAPI(BaseAPIClient):
         }
         return self.get(self.BASE_PATH, params=params, **kwargs)
 
+    def create_schedule(
+        self,
+        *,
+        summary: str,
+        dt_start: str,
+        dt_end: str,
+        classroom_id: str | None = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        """POST /schedule — 수업 일정 생성 (CS-003 등).
+
+        org·Bearer는 fixtures/elice_auth.make_authenticated_session 이 session에 세팅 (get_schedule과 동일).
+        """
+        body = {
+            "classroom_id": classroom_id or self.classroom_id,
+            "summary": summary,
+            "dt_start": dt_start,
+            "dt_end": dt_end,
+        }
+        return self.post(self.BASE_PATH, json=body, **kwargs)
+
+    def delete_schedule(
+        self,
+        schedule_id: str,
+        *,
+        classroom_id: str | None = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        """DELETE /schedule/{schedule_id} — 생성 TC teardown (CS-003). body에 classroom_id 필수."""
+        path = f"{self.BASE_PATH}/{schedule_id.lstrip('/')}"
+        if "json" not in kwargs and "data" not in kwargs:
+            kwargs["json"] = {"classroom_id": classroom_id or self.classroom_id}
+        return self.delete(path, **kwargs)
+
     def delete_classroom_course(self, course_id: int, **kwargs: Any) -> requests.Response:
         """ 과목 삭제 api 호출(teardown용)
         DELETE /classroom/{classroom_id}/course/{course_id} — classroom에서 과목 분리 (dev bulk teardown)
 
-        명세: path course_id는 integer. x-elice-org-name-short 필수 → client.org 명시.
+        명세: path course_id는 integer. org·Bearer는 authenticated session (get_schedule과 동일).
         """
         path = f"/classroom/{self.classroom_id}/course/{course_id}"
-        headers = dict(kwargs.pop("headers", {}))
-        headers["x-elice-org-name-short"] = self.org
-        return self.delete(path, headers=headers, **kwargs)
+        return self.delete(path, **kwargs)
 
     def raw(
         self,
@@ -275,6 +307,20 @@ def current_month_range() -> tuple[str, str]:
     start = f"{today.year:04d}-{today.month:02d}-01T00:00:00.000Z"
     end = f"{today.year:04d}-{today.month:02d}-{last_day:02d}T23:59:59.999Z"
     return start, end
+
+
+def today_schedule_day_query() -> tuple[str, str, str]:
+    """오늘 하루 일정 생성·조회용 (YYYY-MM-DD, dt_start_ge, dt_start_le).
+
+    current_month_range()와 역할이 다름: CS-003은 POST 날짜(YYYY-MM-DD)와 GET 구간을 '오늘'로 좁히기 위함.
+    이번 달 전체(current_month_range)로 GET해도 summary UUID로 찾는 건 가능하나, 조회 범위·노이즈가 커짐.
+    """
+    day = date.today().isoformat()
+    return (
+        day,
+        f"{day}T00:00:00.000Z",
+        f"{day}T23:59:59.999Z",
+    )
 
 
 def resolve_schedule_query_params() -> ScheduleQueryParams:
