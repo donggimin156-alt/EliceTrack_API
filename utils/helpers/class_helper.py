@@ -18,7 +18,7 @@ import logging
 import time
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, final
 
 from .api_assertions import assert_valid_schema
 from .base import AssertionFailure, _fail, _format_json
@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 # 리뷰 #2: validate(instance=..., schema=...)를 테스트 코드에서 반복 호출하지 않도록
 # 기존 공용 함수를 도메인 친화적인 이름으로 재노출한다. (새로 만들지 않고 재사용)
-assert_schema = assert_valid_schema
 
 
 # ==========================================
@@ -200,6 +199,7 @@ def assert_task_completed(
         _fail(
             f"Expected task result={expected_result} but got {task_data.get('result')}"
         )
+    logger.info("DEBUG final=%s", final)
 
 
 def wait_until_item_in_list(
@@ -229,6 +229,32 @@ def wait_until_item_in_list(
         ),
     )
 
+def wait_until_item_not_in_list(
+    fetch_list_fn: Callable[[], Iterable[dict[str, Any]]],
+    match_key: str,
+    match_value: Any,
+    max_retry: int = TASK_POLL_MAX_RETRY,
+    interval_sec: float = TASK_POLL_INTERVAL_SEC,
+) -> list[dict[str, Any]]:
+    """fetch_list_fn()이 반환하는 리스트 안에서 match_key==match_value인 항목이
+    사라질 때까지 polling한다. (예: 삭제 후 course_list에서 실제로 빠졌는지 확인할 때)
+    wait_until_item_in_list와 대칭되는 함수 — 삭제 검증에도 재사용 가능하다.
+    """
+
+    def _poll() -> list[dict[str, Any]] | None:
+        items = list(fetch_list_fn())
+        if any(item.get(match_key) == match_value for item in items):
+            return None
+        return items
+
+    return wait_until(
+        _poll,
+        max_retry=max_retry,
+        interval_sec=interval_sec,
+        timeout_message=(
+            f"{match_key}={match_value}가 제한 시간 내에 목록에서 제거되지 않았습니다."
+        ),
+    )
 
 # ==========================================
 # 6. 비동기 생성 리소스에 대한 teardown 정리

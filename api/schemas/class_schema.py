@@ -62,3 +62,62 @@ class ClassSchemas:
         },
         "required": ["id", "status", "result"],
     }
+
+       
+
+    COURSE_LIST_ITEM_SCHEMA: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {},
+            "course_id": {},
+            "title": {},
+            "short_description": {},
+            "description": {},
+            "course_type": {},
+            "logo_file_url": {},
+            "image_file_url": {},
+            "status": {},
+            "categories": {},
+            "programming_languages": {},
+            "level": {},
+            "classroom_course_status": {},
+            "classroom_course_progress_data": {"type": "object"},
+            "created": {},
+            "modified": {},
+            "pass_info": {},
+        },
+        "required": [
+            "id", "course_id", "title", "short_description", "description",
+            "course_type", "logo_file_url", "image_file_url", "status",
+            "categories", "programming_languages", "level",
+            "classroom_course_status", "classroom_course_progress_data",
+            "created", "modified", "pass_info",
+        ],
+    }
+
+    # 단건 조회(get_course)의 구조 — classroom 진행 상태 필드 없음
+    COURSE_DETAIL_SCHEMA: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {},
+            "course_id": {},
+            "title": {},
+            "short_description": {},
+            "description": {},
+            "course_type": {},
+            "logo_file_url": {},
+            "image_file_url": {},
+            "status": {},
+            "categories": {},
+            "programming_languages": {},
+            "level": {},
+            "created": {},
+            "modified": {},
+        },
+        "required": [
+            "id", "course_id", "title", "short_description", "description",
+            "course_type", "logo_file_url", "image_file_url", "status",
+            "categories", "programming_languages", "level",
+            "created", "modified",
+        ],
+    }

@@ -55,3 +55,11 @@ class ClassApi(BaseAPIClient):
     def get_task(self, task_id: str) -> requests.Response:
         """GET /task/{task_id} — bulk 작업 상태 폴링 (classroom-api와 같은 호스트, /classroom 접두사 없음)"""
         return self.get(f"/task/{task_id}")
+
+    def delete_course(self, course_id: int | str) -> requests.Response:
+        """DELETE /classroom/{classroom_id}/course/{course_id}"""
+        return self.delete(f"{self.course_path}/{course_id}")
+
+    def get_course_count(self) -> requests.Response:
+        """GET /classroom/{classroom_id}/course/count"""
+        return self.get(f"{self.course_path}/count")
