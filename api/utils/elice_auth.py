@@ -1,7 +1,7 @@
 # api/utils/elice_auth.py
 """Elice API 테스트 공통 인증 유틸.
 
-토큰 해석, /login/pw, Bearer session 생성 등 classhome/board/schedule/class fixture가
+토큰 해석, /login/pw, Bearer session 생성 등
 공유하는 인증 로직의 SSOT(Single Source of Truth).
 """
 import os

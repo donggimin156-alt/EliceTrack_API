@@ -5,10 +5,7 @@
 # 코어 패키지들을 먼저 상속받아 설치합니다.
 -r requirements.txt
 
-# 1. Linting, Formatting & Type Checking
-mypy>=1.9.0,<2.0.0
-ruff>=0.3.0,<1.0.0
-types-requests>=2.31.0,<3.0.0
+
 
 # 2. Security Scanning
 bandit>=1.7.5,<2.0.0
