@@ -99,6 +99,12 @@ SCHEDULE_PARAM_CLIENTS = [
     pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="educator-dev"),
 ]
 
+# CS-EDGE-01 — count 상한+1(51), prod·dev 동일 절차 (CS-PARAM과 같은 클라이언트, id만 Notion TC에 맞춤)
+SCHEDULE_EDGE_CLIENTS = [
+    pytest.param("schedule_prod_learner", marks=pytest.mark.learner, id="CS-EDGE-01-learner-prod"),
+    pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="CS-EDGE-01-educator-dev"),
+]
+
 
 @pytest.mark.api
 @pytest.mark.schedule
@@ -208,6 +214,61 @@ class TestScheduleCommon:
         helpers.assert_list_length(body["detail"], 1)
         assert_detail_error(body, "missing", ["query", omit_field])
         helpers.assert_json_value(body, "detail[0].msg", "Field required")
+
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_EDGE_CLIENTS)
+    def test_CS_EDGE_01(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-EDGE-01] GET /schedule — count 경계값(상한+1) 초과 시 거부
+
+        경계값 분석(BVA): count 유효 상한 50, 51(50+1)이면 거절.
+        prod 학습자 / dev 교육자 — 절차·기대 응답 동일 → parametrize로 1함수 2회.
+
+        Notion 기대결과(요약):
+          - HTTP 409
+          - code = elice_calendar_unexpected_result
+          - count 50 초과(limit 위반)
+          - 수업 일정 목록 없이 오류 JSON만 반환
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+
+        # CS-001과 동일한 classroom·조회 기간. count만 SCHEDULE_COUNT_OVER_LIMIT(51)로 변경.
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_ge,
+            dt_start_le=query.dt_start_le,
+            classroom_id=client.classroom_id,
+            count=schedule.SCHEDULE_COUNT_OVER_LIMIT,
+        )
+
+        # HTTP 409 — 성공(200)이 아님
+        helpers.assert_status_code(resp, 409)
+        body = resp.json()
+
+        # 성공 시 body는 일정 목록(배열). limit 초과면 오류 dict만 와야 함.
+        assert not isinstance(body, list), (
+            "count가 상한을 넘으면 수업 일정 목록이 조회되면 안 됩니다. "
+            "오류 JSON(dict)만 반환되어야 합니다."
+        )
+
+        # envelope 최상위 code — Notion 기대결과
+        helpers.assert_json_value(body, "code", "elice_calendar_unexpected_result")
+
+        # schedule_api: 중첩 JSON에서 limit 위반 detail만 꺼냄 (assert 없음)
+        limit_detail = schedule.parse_calendar_count_limit_detail(body)
+        assert limit_detail is not None, (
+            "calendar count limit detail을 찾을 수 없습니다. "
+            f"code={body.get('code')!r} — prod는 PROD_LEARNER_TOKEN·세션 확인."
+        )
+
+        # test: Notion·실측 기대값과 비교 (경계값 BVA — 상한 50)
+        assert limit_detail.get("loc") == ["query", "limit"]
+        assert limit_detail.get("type") == "value_error.number.not_le"
+        assert (limit_detail.get("ctx") or {}).get("limit_value") == schedule.SCHEDULE_COUNT_MAX
 
     @pytest.mark.parametrize("client_fixture", AUTH_01_SCHEDULE_TARGETS)
     def test_CS_AUTH_01(

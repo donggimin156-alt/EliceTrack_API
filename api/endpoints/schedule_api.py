@@ -22,6 +22,19 @@ from api.base_client import BaseAPIClient
 from core.config import settings
 
 
+# ── 모듈 상수 (TC·헬퍼에서 참조) ──
+
+# dev bulk course attach — library original id (QA5기 학습과목, dev에 항상 존재)
+DEV_LIBRARY_ORIGINAL_COURSE_ID = 1
+
+# classroom 과목 목록 GET count — 10이면 새 과목이 안 보일 수 있어 넉넉히
+SCHEDULE_CLASSROOM_COURSE_LIST_COUNT = 9999
+
+# GET /schedule query count — Elice Calendar limit (CS-EDGE-01 실측, prod·dev 동일)
+SCHEDULE_COUNT_MAX = 50
+SCHEDULE_COUNT_OVER_LIMIT = SCHEDULE_COUNT_MAX + 1  # BVA: 유효 상한(50) 바로 다음 값
+
+
 @dataclass(frozen=True)
 class ScheduleQueryParams:
     """GET /schedule 조회에 사용하는 기간·개수 파라미터."""
@@ -202,14 +215,7 @@ class ScheduleRestAPI(BaseAPIClient):
         return cls(client.session, env_name=client.env_name)
 
 
-# ── dev schedule TC 전용:  bulk로 course_id 확보 ──
-
-# dev CMS library/course id 1 = QA5기 학습과목 (이건 항상 존재함)
-DEV_LIBRARY_ORIGINAL_COURSE_ID = 1
-
-# classroom 과목 목록 GET count — 10이면 새 과목이 안 보일 수 있어 넉넉히
-SCHEDULE_CLASSROOM_COURSE_LIST_COUNT = 9999
-
+# ── dev bulk: classroom에 library 과목 붙여 course_id 확보 (fixtures) ──
 
 def _classroom_course_ids(client: ScheduleAPI, count: int = SCHEDULE_CLASSROOM_COURSE_LIST_COUNT) -> set[int]:
     """이 classroom에 붙은 과목들의 course_id(숫자)만 모은다
@@ -341,6 +347,29 @@ def resolve_schedule_course_id() -> int:
 def extract_date(value: str) -> str:
     """ISO 날짜/datetime 문자열에서 앞 10자(YYYY-MM-DD)만 추출한다."""
     return value[:10]
+
+
+def parse_calendar_count_limit_detail(body: dict[str, Any]) -> dict[str, Any] | None:
+    """GET /schedule count 상한 초과 409 body에서 calendar limit 위반 detail만 꺼낸다 (CS-EDGE-01).
+
+    성공(200) 응답은 일정 배열(list)이고, limit 초과 시 dict envelope가 온다.
+    ``detail.resp_json.detail`` 까지 내려가 loc / type / ctx.limit_value 등을 반환한다.
+
+    - ``code != elice_calendar_unexpected_result`` 이면 None (auth 오류 envelope 등)
+    - assert·pytest 의존 없음 — test에서 꺼낸 값과 기대값을 비교한다.
+    """
+    if body.get("code") != "elice_calendar_unexpected_result":
+        return None
+    detail = body.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    resp_json = detail.get("resp_json")
+    if not isinstance(resp_json, dict):
+        return None
+    limit_detail = resp_json.get("detail")
+    if not isinstance(limit_detail, dict):
+        return None
+    return limit_detail
 
 
 def item_active_date_range(item: dict[str, Any], query_end_date: str) -> tuple[str, str]:
