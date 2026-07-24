@@ -88,3 +88,66 @@ class ScheduleSchemas:
         "type": "array",
         "items": SCHEDULE_ITEM_SCHEMA,
     }
+
+    # REST GET course/get — prod·dev 실측 기준 공통 골격만 검증 (preference/menus 깊이·lectures 개수는 환경별로 다름)
+    _COURSE_GET_RESULT: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string"},
+            "status_code": {"type": "integer"},
+            "reason": {"type": ["string", "null"]},
+        },
+        "required": ["status", "status_code"],
+    }
+
+    _COURSE_GET_LECTURE_ITEM: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "title": {"type": "string"},
+        },
+        "required": ["id", "title"],
+    }
+
+    _COURSE_GET_COURSE: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "organization_id": {"type": "integer"},
+            "title": {"type": "string"},
+            "lectures": {
+                "type": "array",
+                "minItems": 0,
+                "items": _COURSE_GET_LECTURE_ITEM,
+            },
+            "preference": {"type": "object"},
+            "menus": {"type": "object"},
+            "instructors": {"type": "array"},
+        },
+        "required": ["id", "organization_id", "title", "lectures"],
+    }
+
+    _COURSE_GET_SECTION: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "name": {"type": "string"},
+            "is_joined": {"type": "boolean"},
+        },
+        "required": ["id", "name", "is_joined"],
+    }
+
+    COURSE_GET_RESPONSE_SCHEMA: Final[dict[str, Any]] = {
+        "type": "object",
+        "properties": {
+            "_result": _COURSE_GET_RESULT,
+            "course": _COURSE_GET_COURSE,
+            "course_sections": {
+                "type": "array",
+                "items": _COURSE_GET_SECTION,
+            },
+            "course_role": {"type": "integer"},
+            "has_past_course_role": {"type": "boolean"},
+        },
+        "required": ["_result", "course"],
+    }
