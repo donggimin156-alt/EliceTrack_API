@@ -39,16 +39,17 @@ def schedule_query_params() -> schedule.ScheduleQueryParams:
 
 @pytest.fixture(scope="session")
 def schedule_course_id() -> int:
-    """prod REST course/get 등 — SCHEDULE_COURSE_ID env (dev bulk id와 별개)"""
+    """prod REST course/get — env SCHEDULE_COURSE_ID (기본 770265). dev bulk 템플릿·course_id와 별개."""
     return schedule.resolve_schedule_course_id()
 
 
 @pytest.fixture(scope="session")
 def schedule_dev_attached_course_id(schedule_dev_educator: schedule.ScheduleAPI) -> int:
-    """dev bulk로 확보한 course_id — session 종료 시 DELETE로 classroom에서 제거
+    """dev REST course/get용 course_id — bulk attach로 확보, session 종료 시 DELETE teardown.
 
-    setup: resolve_dev_attached_course_id (CS-AUTH-02 dev course/get 등)
-    teardown: DELETE /classroom/{id}/course/{course_id}, 기대 HTTP 200
+    setup: DEV_BULK_ADD_COURSE_ID(341, 「2팀 테스트 과목」) 템플릿 bulk → diff로 실제 course_id 추출.
+    사용 TC: CS-AUTH-02·CS-002 dev 교육자 row (CS-002 test_CS_002 포함).
+    teardown: DELETE /classroom/{id}/course/{course_id}, 기대 HTTP 200.
     """
     try:
         course_id = schedule.resolve_dev_attached_course_id(schedule_dev_educator)

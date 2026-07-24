@@ -43,7 +43,8 @@ AUTH_01_SCHEDULE_TARGETS = [
     pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="CS-AUTH-01-schedule-educator-dev"),
 ]
 
-# CS-AUTH-02 — REST GET course/get, Bearer 없음 (course_id만 env·픽스처별 상이)
+# CS-AUTH-02 — REST GET course/get, Bearer 없음
+#   prod: schedule_course_id(SCHEDULE_COURSE_ID) / dev: schedule_dev_attached_course_id(bulk 341→실제 id)
 AUTH_02_COURSE_GET_TARGETS = [
     pytest.param(
         "schedule_prod_learner",
@@ -65,7 +66,7 @@ COURSE_GET_AUTH_JSON_EXPECTATIONS = (
     ("fail_code", "insufficient_permission"),
 )
 
-# CS-002 — REST GET course/get, Bearer 있음 (course_id row는 CS-AUTH-02와 동일)
+# CS-002 — REST GET course/get, Bearer 있음 (course_id row는 CS-AUTH-02와 동일 픽스처)
 CS_002_COURSE_GET_TARGETS = [
     pytest.param(
         "schedule_prod_learner",

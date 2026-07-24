@@ -24,9 +24,6 @@ from core.config import settings
 
 # ── 모듈 상수 (TC·헬퍼에서 참조) ──
 
-# dev bulk course attach — library original id (QA5기 학습과목, dev에 항상 존재)
-DEV_LIBRARY_ORIGINAL_COURSE_ID = 1
-
 # classroom 과목 목록 GET count — 10이면 새 과목이 안 보일 수 있어 넉넉히
 SCHEDULE_CLASSROOM_COURSE_LIST_COUNT = 9999
 
@@ -215,7 +212,7 @@ class ScheduleRestAPI(BaseAPIClient):
         return cls(client.session, env_name=client.env_name)
 
 
-# ── dev bulk: classroom에 library 과목 붙여 course_id 확보 (fixtures) ──
+# ── dev bulk: config 템플릿(DEV_BULK_ADD_COURSE_ID)으로 과목 붙여 course_id 확보 ──
 
 def _classroom_course_ids(client: ScheduleAPI, count: int = SCHEDULE_CLASSROOM_COURSE_LIST_COUNT) -> set[int]:
     """이 classroom에 붙은 과목들의 course_id(숫자)만 모은다
@@ -237,7 +234,10 @@ def _bulk_attach_library_courses(client: ScheduleAPI, original_course_ids: list[
     UI 과목 import와 동일 — library original id를 이 classroom에 bulk로 붙인다
 
     반환값은 task_id뿐 (course_id 없음) → 완료는 _wait_bulk_task, id는 목록 diff
-    original_course_id 1 = dev library QA5기 학습과목
+    original_course_ids 값은 core.config settings.elice_dev_bulk_add_course_id
+    (env DEV_BULK_ADD_COURSE_ID, 기본 341 — dev library 「2팀 테스트 과목」 템플릿).
+    템플릿 id와 classroom에 붙은 뒤 REST course/get에 쓰는 course_id는 다르다
+    (class_fixture.BULK_ADD_COURSE_ID와 동일 SSOT).
     """
     path = f"/v2/classroom/{client.classroom_id}/course/bulk"
     resp = client.post(path, json={"original_course_ids": original_course_ids})
@@ -276,13 +276,18 @@ def _wait_bulk_task(
 
 def resolve_dev_attached_course_id(
     client: ScheduleAPI,
-    original_course_id: int = DEV_LIBRARY_ORIGINAL_COURSE_ID,
+    original_course_id: int | None = None,
 ) -> int:
-    """dev schedule/rest TC용 course_id 하나를 확보 (픽스처 schedule_dev_attached_course_id가 호출)
+    """dev REST course/get TC용 course_id 하나를 확보 (픽스처 schedule_dev_attached_course_id).
 
-    before 목록 → bulk → task 대기 → after 목록 → after-before 가 1개면 그 course_id 반환
-    client: dev 교육자 Session + ScheduleAPI (dev CLASSROOM_ID). prod와 무관
+    before 목록 → bulk(DEV_BULK_ADD_COURSE_ID) → task 대기 → after 목록 diff → 새 course_id 1개 반환.
+    bulk 템플릿 기본 341 → course/get 시 title 예: 「2팀 테스트 과목」(실행마다 course_id는 새로 부여).
+
+    original_course_id 미지정 시 settings.elice_environments["dev"]["BULK_ADD_COURSE_ID"] 사용.
+    client: dev 교육자 Session + ScheduleAPI. prod schedule_course_id(SCHEDULE_COURSE_ID)와 무관.
     """
+    if original_course_id is None:
+        original_course_id = settings.elice_environments["dev"]["BULK_ADD_COURSE_ID"]
     before = _classroom_course_ids(client)
     task_id = _bulk_attach_library_courses(client, [original_course_id])
     _wait_bulk_task(client, task_id)
@@ -297,7 +302,7 @@ def resolve_dev_attached_course_id(
 
 
 def teardown_dev_attached_course(client: ScheduleAPI, course_id: int) -> None:
-    """bulk로 붙인 dev classroom 과목 삭제 — pytest session teardown용 (HTTP 200, body {})."""
+    """resolve_dev_attached_course_id로 bulk 붙인 dev 과목 삭제 — pytest session teardown (HTTP 200)."""
     resp = client.delete_classroom_course(course_id)
     if resp.status_code != 200:
         raise RuntimeError(
