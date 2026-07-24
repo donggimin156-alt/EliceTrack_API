@@ -76,7 +76,7 @@ class Settings(BaseSettings):
         default=43, validation_alias="DEV_REPORT_COURSE_ID"
     )
     elice_dev_bulk_add_course_id: int = Field(
-        default=17, validation_alias="DEV_BULK_ADD_COURSE_ID"
+        default=341, validation_alias="DEV_BULK_ADD_COURSE_ID"
     )
 
     # ==========================================
