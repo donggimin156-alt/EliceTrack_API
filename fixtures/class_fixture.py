@@ -1,5 +1,5 @@
-# fixtures/class_fixture_v2.py
-"""Classroom Course API 전용 픽스처 — v2 리팩토링 버전."""
+# fixtures/class_fixture.py
+"""Classroom Course API 전용 픽스처."""
 
 import logging
 
@@ -12,6 +12,7 @@ from core.config import settings
 from api.utils.elice_auth import get_env_config, make_authenticated_session
 from utils.helpers.api_assertions import assert_valid_schema
 from utils.helpers.class_helper import (
+    MAX_PAGE_SIZE,
     assert_task_completed,
     cleanup_resource_if_exists,
     wait_until_task_completed,
@@ -37,6 +38,22 @@ def _build_class_api(
     env = get_env_config(env_name)
     resolved_classroom_id = classroom_id or env["CLASSROOM_ID"]
     return ClassApi(session, classroom_id=resolved_classroom_id, env_name=env_name)
+
+
+def _fetch_course_ids(class_api: ClassApi, assert_response) -> set[int]:
+    """현재 강의실에 배정된 course_id 전체 집합을 조회한다.
+
+    count를 고정값(MAX_PAGE_SIZE)으로 두면 실제 과목 수가 그보다 많을 때 응답이
+    잘려서(capped) diff가 항상 빈 값으로 나오는 문제가 있었다. 그래서 먼저
+    /course/count로 전체 개수를 조회한 뒤, 그 값으로 목록을 요청해 전량을 받는다.
+    (/course/count는 정수 하나를 그대로 반환한다.)
+    """
+    count_resp = class_api.get_course_count()
+    total = assert_response(count_resp, 200)
+
+    resp = class_api.get_course_list(skip=0, count=total)
+    data = assert_response(resp, 200)
+    return {course["course_id"] for course in data}
 
 
 @pytest.fixture(scope="session")
@@ -183,6 +200,7 @@ def other_account_class_api(class_api, class_api_factory):
         skip_msg="다른 계정 인증 정보(LEARNER_OTHER_ACCOUNT)가 준비되지 않아 스킵",
     )
 
+
 @pytest.fixture(scope="session")
 def educator_class_api(class_api_factory) -> ClassApi:
     """dev 교육자용 ClassApi — 과목 추가(bulk)/순서 변경 등 교육자 전용 액션에 사용."""
@@ -218,59 +236,87 @@ def wait_for_task_completion(assert_response):
 
     return _wait
 
+
 @pytest.fixture
-def track_bulk_added_courses(educator_class_api):
-    """bulk add로 강의실에 추가된 course_id를 테스트 종료 후 자동 삭제(teardown)한다.
- 
-    board_fixture.py의 track_articles와 동일한 패턴(등록 -> yield -> 역순 정리)에
-    "삭제 전 존재 확인"만 helper.cleanup_resource_if_exists로 추가한 버전이다.
+def track_bulk_added_courses(educator_class_api, assert_response):
+    """bulk add로 강의실에 새로 생성된 course_id를 테스트 종료 후 자동 삭제(teardown)한다.
+
+    ⚠️ 설계 노트:
+    add_courses_bulk에 넘기는 original_course_ids(예: 17)는 "어떤 과목 템플릿을
+    배정할지"를 가리키는 입력값일 뿐, 실제로 이 강의실에 생성되는 course_id
+    (예: 288, 317...)와는 전혀 다른 값이다. 과거에 original_course_ids 자체를
+    추적/삭제 대상으로 삼았다가, 존재 확인이 영원히 실패(409 model_not_found)하고
+    진짜 생성된 리소스는 추적조차 안 돼 강의실에 orphan으로 계속 쌓이는 사고가
+    있었다 (동일한 이름의 과목이 course_id만 다른 채 여러 개 누적됨).
+
+    그래서 course_id 자체가 아니라 "bulk add 호출 직전의 course_id 스냅샷(set)"을
+    등록받는다. teardown 시점에 현재 course_id 목록과 diff를 떠서 새로 생긴
+    course_id들을 찾아내고, 그것들을 실제 삭제 대상으로 삼는다.
     """
-    added: list[int] = []
-    yield added
-    for course_id in reversed(added):
-        cleanup_resource_if_exists(
-            exists_check_fn=lambda cid=course_id: educator_class_api.get_course(cid).status_code == 200,
-            delete_fn=lambda cid=course_id: educator_class_api.delete_course(cid),
-            resource_label=f"course_id={course_id}",
-        )
- 
- 
+    pre_add_snapshots: list[set[int]] = []
+    yield pre_add_snapshots
+
+    for before_ids in reversed(pre_add_snapshots):
+        after_ids = _fetch_course_ids(educator_class_api, assert_response)
+        new_course_ids = after_ids - before_ids
+        for course_id in new_course_ids:
+            cleanup_resource_if_exists(
+                exists_check_fn=lambda cid=course_id: educator_class_api.get_course(cid).status_code == 200,
+                delete_fn=lambda cid=course_id: educator_class_api.delete_course(cid),
+                resource_label=f"course_id={course_id}",
+            )
+
+
 @pytest.fixture
 def bulk_add_task_id(educator_class_api, assert_response, track_bulk_added_courses):
     """course_ids 리스트로 bulk add를 요청하고 task_id를 반환하는 팩토리 픽스처.
- 
-    요청에 사용한 course_id들은 (task 성공 여부와 무관하게) track_bulk_added_courses에
-    등록된다. 실제 정리 시점에는 존재 여부를 확인한 뒤에만 삭제하므로, task가 아직
-    끝나지 않은 상태로 테스트가 종료돼도 안전하다.
- 
+
+    호출 직전의 course_id 스냅샷을 track_bulk_added_courses에 등록해서, task 성공
+    여부나 완료 시점과 무관하게 teardown에서 diff 기반으로 새로 생긴 리소스를
+    정리할 수 있게 한다.
+
     사용: task_id = bulk_add_task_id([course_id, ...])
     """
- 
-    def _create(course_ids: list[int]) -> str:
-        resp = educator_class_api.add_courses_bulk(course_ids)
+
+    def _create(original_course_ids: list[int]) -> str:
+        before_ids = _fetch_course_ids(educator_class_api, assert_response)
+
+        resp = educator_class_api.add_courses_bulk(original_course_ids)
         data = assert_response(resp, 200)
         assert set(data.keys()) == {"task_id"}, f"Expected only 'task_id' key but got {data.keys()}"
         assert isinstance(data["task_id"], str) and data["task_id"], (
             f"Expected non-empty str task_id but got {data['task_id']!r}"
         )
-        track_bulk_added_courses.extend(course_ids)
+
+        track_bulk_added_courses.append(before_ids)
         return data["task_id"]
- 
+
     return _create
- 
- 
+
+
 @pytest.fixture
-def completed_bulk_add_task(educator_class_api, bulk_add_task_id):
-    """단일 과목(BULK_ADD_COURSE_ID) bulk add 요청 후 completed 상태까지 대기한
-    (task_id, 최종 task 응답) 튜플.
- 
-    여러 테스트에서 반복되는 '제출 -> 완료 대기 -> schema/status 검증' 흐름을
-    한 곳에 캡슐화한다. 이 픽스처를 쓰는 테스트는 완료를 이미 확인했으므로
-    teardown에서 존재 확인이 즉시 통과해 추가 대기 없이 바로 정리된다.
+def completed_bulk_add_task(educator_class_api, assert_response, bulk_add_task_id):
+    """단일 과목 템플릿(BULK_ADD_COURSE_ID) bulk add 요청 후 completed 상태까지 대기하고,
+    실제로 새로 생성된 course_id까지 diff로 찾아낸 (task_id, task 응답, added_course_id) 튜플.
+
+    ⚠️ original_course_ids로 넘기는 값(BULK_ADD_COURSE_ID)과 실제 생성되는 course_id는
+    다른 값이므로, 호출 직전 스냅샷과 완료 직후 스냅샷을 비교해 새로 생긴 course_id를
+    특정한다. 이 fixture를 쓰는 테스트는 반환된 added_course_id를 사용해야 한다
+    (BULK_ADD_COURSE_ID로 조회/검증하면 항상 실패한다).
     """
+    before_ids = _fetch_course_ids(educator_class_api, assert_response)
+
     task_id = bulk_add_task_id([BULK_ADD_COURSE_ID])
     final = wait_until_task_completed(educator_class_api, task_id)
     assert_valid_schema(final, ClassSchemas.TASK_SCHEMA)
     assert_task_completed(final, expected_result=BULK_ADD_EXPECTED_RESULT)
-    return task_id, final
- 
+
+    after_ids = _fetch_course_ids(educator_class_api, assert_response)
+    new_course_ids = after_ids - before_ids
+    assert len(new_course_ids) == 1, (
+        f"Expected exactly 1 newly created course_id but found {new_course_ids} "
+        f"(before={len(before_ids)}, after={len(after_ids)})"
+    )
+    added_course_id = new_course_ids.pop()
+
+    return task_id, final, added_course_id
