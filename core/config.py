@@ -89,11 +89,6 @@ class Settings(BaseSettings):
         """
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
 
-        이게 Elice URL/org/classroom_id 등의 유일한 출처(SSOT)입니다.
-        board_fixture.py, board_api.py 등 다른 어떤 파일에서도 이 값들을
-        직접 문자열로 재선언하지 말고, 반드시 settings.elice_environments["dev"|"prod"]
-        형태로 가져다 쓰세요.
-
         prod_learner/dev_learner/dev_educator처럼 현재 TEST_ENV와 무관하게
         특정 환경을 못 박아야 하는 픽스처가 있어서, test_env 하나로 자동 선택하는 대신
         dev/prod 두 세트를 통째로 반환합니다.
