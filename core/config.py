@@ -63,6 +63,22 @@ class Settings(BaseSettings):
     elice_prod_board_id: str = Field(default="10187", validation_alias="PROD_BOARD_ID")
     elice_prod_others_article_id: str = Field(default="78933", validation_alias="PROD_OTHERS_ARTICLE_ID")
 
+    elice_prod_progress_course_id: int = Field(
+        default=776040, validation_alias="PROD_PROGRESS_COURSE_ID"
+    )
+
+    elice_prod_cohort_id: str = Field(
+        default="71efc017-93a4-4358-a08b-cb5f12a97dbb", validation_alias="PROD_COHORT_ID"
+    )
+
+    # --- 교육자 리포트(E-11) / 과목 추가(E-12) : dev 고정 ---
+    elice_dev_report_elice_course_id: int = Field(
+        default=43, validation_alias="DEV_REPORT_COURSE_ID"
+    )
+    elice_dev_bulk_add_course_id: int = Field(
+        default=341, validation_alias="DEV_BULK_ADD_COURSE_ID"
+    )
+
     # ==========================================
     # 3. 동적/계산된 속성 (Computed Properties)
     # ==========================================
@@ -72,11 +88,6 @@ class Settings(BaseSettings):
     def elice_environments(self) -> dict:
         """
         Elice의 dev/prod 환경 설정 전체를 문자열 키("dev"/"prod")로 공개합니다.
-
-        이게 Elice URL/org/classroom_id 등의 유일한 출처(SSOT)입니다.
-        board_fixture.py, board_api.py 등 다른 어떤 파일에서도 이 값들을
-        직접 문자열로 재선언하지 말고, 반드시 settings.elice_environments["dev"|"prod"]
-        형태로 가져다 쓰세요.
 
         prod_learner/dev_learner/dev_educator처럼 현재 TEST_ENV와 무관하게
         특정 환경을 못 박아야 하는 픽스처가 있어서, test_env 하나로 자동 선택하는 대신
@@ -94,19 +105,25 @@ class Settings(BaseSettings):
                 "REST_API_URL": "https://dev-qatrack-api.dev.elicer.io",
                 "AUTH_API_URL": "https://dev-qatrack-account-api.dev.elicer.io",
                 "CLASSROOM_API_URL": "https://dev-qatrack-classroom-api.dev.elicer.io",
+                "DASHBOARD_API_URL": "https://dev-qatrack-dashboard-api.dev.elicer.io",
                 "ORG": "academy",
                 "CLASSROOM_ID": self.elice_dev_classroom_id,
                 "BOARD_ID": self.elice_dev_board_id,
                 "OTHERS_ARTICLE_ID": self.elice_dev_others_article_id,
+                "REPORT_ELICE_COURSE_ID": self.elice_dev_report_elice_course_id,
+                "BULK_ADD_COURSE_ID": self.elice_dev_bulk_add_course_id,
             },
             "prod": {
                 "REST_API_URL": "https://api-rest.elice.io",
                 "AUTH_API_URL": "https://api-account.elice.io",
                 "CLASSROOM_API_URL": "https://api-classroom.elice.io",
+                "DASHBOARD_API_URL": "https://api-dashboard.elice.io",
                 "ORG": "qatrack",
                 "CLASSROOM_ID": self.elice_prod_classroom_id,
                 "BOARD_ID": self.elice_prod_board_id,
                 "OTHERS_ARTICLE_ID": self.elice_prod_others_article_id,
+                "COHORT_ID": self.elice_prod_cohort_id,
+                "PROGRESS_COURSE_ID": self.elice_prod_progress_course_id,
             },
         }
 

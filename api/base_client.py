@@ -16,8 +16,7 @@ class BaseAPIClient:
     """
     엔터프라이즈 환경을 위한 공통 API 클라이언트 클래스.
 
-    관심사 분리(SoC)를 통해 HTTP 통신 제어(헤더 병합, 타임아웃, 예외 처리 등)에만 집중하며,
-    비즈니스 로직은 상속받는 하위 도메인 API 클래스(예: UserAPI, BoardApiClient)로 위임합니다.
+    관심사 분리(SoC)를 통해 HTTP 통신 제어(헤더 병합, 타임아웃, 예외 처리 등)에만 집중
     """
 
     def __init__(
@@ -30,18 +29,6 @@ class BaseAPIClient:
     ) -> None:
         """
         BaseAPIClient 인스턴스를 초기화합니다.
-
-        Args:
-            session (requests.Session): 연결 풀링(Connection Pooling) 및 재시도를 위한 공유 HTTP 세션
-            raise_for_status (bool): True일 경우 4xx, 5xx 에러 응답 시 자동으로 예외를 발생시킵니다.
-            base_url (str | None): 이 인스턴스에서 사용할 API Base URL.
-                Elice 클라이언트는 settings.elice_environments[env_name]의
-                REST_API_URL / CLASSROOM_API_URL 등을 넘깁니다.
-                __init__ 직후 self.base_url을 설정하는 하위 클래스도 허용됩니다.
-            timeout (tuple[int, int] | None): (Connect, Read) 타임아웃.
-                지정하지 않으면 전역 settings.api_timeout을 사용합니다.
-            client_name (str | None): 로깅 컨텍스트에 사용할 이름.
-                지정하지 않으면 클래스 이름을 사용합니다. (예: "Elice-LEARNER")
         """
         self.session: requests.Session = session
         self.base_url: str = base_url or ""

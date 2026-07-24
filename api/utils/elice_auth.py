@@ -1,7 +1,7 @@
-# fixtures/elice_auth.py
+# api/utils/elice_auth.py
 """Elice API 테스트 공통 인증 유틸.
 
-토큰 해석, /login/pw, Bearer session 생성 등 board/schedule/class fixture가
+토큰 해석, /login/pw, Bearer session 생성 등
 공유하는 인증 로직의 SSOT(Single Source of Truth).
 """
 import os
@@ -49,8 +49,7 @@ def get_env_config(env_name: str) -> dict:
 
 
 def make_authenticated_session(env_name: str, role: str) -> requests.Session | None:
-    """
-    resolve_token으로 토큰을 구하고, Bearer + org 헤더가 세팅된 Session을 반환.
+    """resolve_token으로 토큰을 구하고, Bearer + org 헤더가 세팅된 Session을 반환.
 
     토큰/계정 정보가 없으면 None.
     """

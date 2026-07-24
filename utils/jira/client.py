@@ -20,7 +20,7 @@ class JiraClient:
     공유 HTTP 세션(Connection Pool)을 사용하여 네트워크 오버헤드를 줄이고, 
     Jira 서버의 Rate Limit(429) 및 일시적 장애(5xx)에 대응하는 정교한 재시도 정책을 지원합니다.
     """
-    
+
     # 인스턴스가 여러 개 생성되더라도 커넥션 풀을 공유하기 위한 클래스 레벨 세션 캐시
     _session: requests.Session | None = None
 
@@ -51,13 +51,13 @@ class JiraClient:
         """
         if cls._session is None:
             cls._session = requests.Session()
-            
+
             # 매 요청마다 반복되는 공통 헤더 주입
             cls._session.headers.update({
                 "Accept": "application/json",
                 "Content-Type": "application/json"
             })
-            
+
             # 실무 기준에 맞춘 엄격한 Retry 정책 (429 Too Many Requests 대응 및 서버 부하 방지)
             retries = Retry(
                 total=3,
@@ -72,7 +72,7 @@ class JiraClient:
             adapter = HTTPAdapter(max_retries=retries)
             cls._session.mount("http://", adapter)
             cls._session.mount("https://", adapter)
-            
+
         return cls._session
 
     def _build_api_url(self, path: str) -> str:
@@ -90,7 +90,7 @@ class JiraClient:
         issue_url = self._build_issue_url(issue_key)
         logger.info(f"✅ Jira 버그 티켓 자동 생성 완료: {issue_key}")
         logger.debug(f"Jira Ticket URL: {issue_url}")
-        
+
         return JiraIssueResult(success=True, issue_key=issue_key, issue_url=issue_url)
 
     def _failure(self, error_message: str) -> JiraIssueResult:
@@ -98,24 +98,70 @@ class JiraClient:
         실패 결과 반환을 위한 내부 헬퍼 메서드 (코드 중복 제거).
         """
         logger.error(f"❌ Jira 티켓 생성 실패: {error_message}")
-        
+
         return JiraIssueResult(success=False, issue_key=None, issue_url=None, error_message=error_message)
+
+    def find_open_issue(self, summary: str) -> str | None:
+        """같은 요약(summary)의 '미해결(Done 아님)' 이슈가 이미 있으면 그 키를 반환합니다.
+
+        같은 테스트가 반복 실패할 때 동일 버그 티켓이 계속 쌓이는 것을 막기 위해,
+        생성 전에 중복 이슈를 조회한다. (Atlassian 신규 검색 API /rest/api/3/search/jql 사용)
+
+        Args:
+            summary (str): 검색할 이슈 요약(제목).
+
+        Returns:
+            str | None: 미해결 중복 이슈의 키(예: "EQA-9"), 없으면 None.
+        """
+        if not self.settings.is_configured:
+            return None
+
+        # summary 안의 특수문자(큰따옴표 등)는 JQL을 깨뜨리므로 안전하게 제거하고 앞부분만 사용한다.
+        safe = summary.replace('"', " ").replace("\\", " ")[:100].strip()
+        jql = (
+            f'project = {self.settings.project_key} '
+            f'AND summary ~ "{safe}" AND statusCategory != Done ORDER BY created DESC'
+        )
+        endpoint = self._build_api_url("rest/api/3/search/jql")
+        auth = HTTPBasicAuth(self.settings.user_email, self.settings.api_token.get_secret_value())
+
+        try:
+            r = self.session.get(
+                endpoint, params={"jql": jql, "maxResults": 1, "fields": "summary"},
+                auth=auth, timeout=self.settings.timeout,
+            )
+            if r.status_code != 200:
+                logger.warning(f"[Jira] 중복 검색 실패(무시하고 생성 진행): {r.status_code} {r.text[:120]}")
+                return None
+            issues = r.json().get("issues", [])
+            return issues[0]["key"] if issues else None
+        except requests.exceptions.RequestException as e:
+            # 검색 실패는 치명적이지 않다 → None 반환해 정상적으로 새 티켓 생성 흐름을 탄다.
+            logger.warning(f"[Jira] 중복 검색 예외(무시): {e}")
+            return None
 
     def create_bug_ticket(self, test_name: str, error_trace: str) -> JiraIssueResult:
         """
         테스트 실패 내용을 기반으로 버그 티켓을 생성합니다.
-        [검증 -> 페이로드 생성 -> API 요청 -> 응답 파싱 -> 결과 반환]의 5단계 구조로 안전하게 동작합니다.
-        
+        같은 요약의 미해결 이슈가 이미 있으면 새로 만들지 않고 그 이슈에 코멘트를 추가합니다(중복 방지).
+
         Args:
             test_name (str): 실패한 테스트 케이스의 이름
             error_trace (str): 실패 시 발생한 에러 스택 트레이스 문자열
-            
+
         Returns:
-            JiraIssueResult: 티켓 생성 성공 여부 및 URL이 담긴 데이터 모델 객체
+            JiraIssueResult: 티켓 생성/코멘트 성공 여부 및 URL이 담긴 데이터 모델 객체
         """
         # 1. 환경 설정 검증 (누락 시 API 요청 생략)
         if not self.settings.is_configured:
             return self._failure(JiraErrorMsg.CONFIG_MISSING.value)
+
+        # 1-b. 중복 방지: 같은 요약의 미해결 이슈가 있으면 새 티켓 대신 코멘트로 실패 이력만 남긴다.
+        summary = self.payload_builder.build(test_name, error_trace)["fields"]["summary"]
+        existing = self.find_open_issue(summary)
+        if existing:
+            logger.info(f"[Jira] 동일 미해결 이슈 존재 → 새 티켓 대신 코멘트: {existing}")
+            return self.add_comment(existing, test_name, error_trace)
 
         # 2. 페이로드 및 엔드포인트, 인증 객체 구성
         endpoint = self._build_api_url("rest/api/2/issue")
@@ -125,13 +171,13 @@ class JiraClient:
         # 3. API 요청 및 세분화된 예외 처리
         try:
             response = self.session.post(endpoint, json=payload, auth=auth, timeout=self.settings.timeout)
-            
+
             # API 호출 추적을 위한 상세 로깅
             logger.info(f"[Jira API] POST /issue | Status: {response.status_code} | Elapsed: {response.elapsed.total_seconds()}s")
 
             # 4. 상태 코드 우선 검증 및 JSON 파싱
             response.raise_for_status()
-            
+
             try:
                 body = response.json()
             except ValueError:
@@ -153,3 +199,59 @@ class JiraClient:
         except requests.exceptions.HTTPError as e:
             error_body = e.response.text[:200] if e.response is not None else "N/A"
             return self._failure(f"HTTP Error {e.response.status_code}: {error_body}")
+
+    def _post_comment(self, issue_key: str, body_text: str) -> JiraIssueResult:
+        """이미 존재하는 Jira 이슈(issue_key)에 임의 본문의 댓글을 추가합니다(내부 공용).
+
+        Args:
+            issue_key (str): 댓글을 달 대상 이슈 키 (예: "EQA-5").
+            body_text (str): 댓글 본문.
+
+        Returns:
+            JiraIssueResult: 성공 여부와 이슈 URL이 담긴 결과 객체.
+        """
+        if not self.settings.is_configured:
+            return self._failure(JiraErrorMsg.CONFIG_MISSING.value)
+
+        endpoint = self._build_api_url(f"rest/api/2/issue/{issue_key}/comment")
+        auth = HTTPBasicAuth(self.settings.user_email, self.settings.api_token.get_secret_value())
+
+        try:
+            response = self.session.post(endpoint, json={"body": body_text}, auth=auth, timeout=self.settings.timeout)
+            logger.info(f"[Jira API] POST /issue/{issue_key}/comment | Status: {response.status_code} | Elapsed: {response.elapsed.total_seconds()}s")
+            response.raise_for_status()
+            return self._success(issue_key)
+
+        except requests.exceptions.Timeout as e:
+            return self._failure(f"API Request Timeout: {e}")
+        except requests.exceptions.ConnectionError as e:
+            return self._failure(f"Network Connection Error: {e}")
+        except requests.exceptions.HTTPError as e:
+            error_body = e.response.text[:200] if e.response is not None else "N/A"
+            status = e.response.status_code if e.response is not None else "N/A"
+            return self._failure(f"HTTP Error {status}: {error_body}")
+
+    def add_comment(self, issue_key: str, test_name: str, error_trace: str) -> JiraIssueResult:
+        """추적 중인 이슈에 테스트 실패 이력을 댓글로 남깁니다(새 티켓 대신 → 중복 방지).
+
+        Args:
+            issue_key (str): 대상 이슈 키.
+            test_name (str): 실패한 테스트 케이스 이름.
+            error_trace (str): 실패 시 스택 트레이스.
+
+        Returns:
+            JiraIssueResult: 결과 객체.
+        """
+        return self._post_comment(issue_key, self.payload_builder.build_comment(test_name, error_trace))
+
+    def add_note(self, issue_key: str, note: str) -> JiraIssueResult:
+        """추적 중인 이슈에 임의 알림 댓글을 남깁니다(예: XPASS = 버그 수정 가능성 알림).
+
+        Args:
+            issue_key (str): 대상 이슈 키.
+            note (str): 댓글 본문.
+
+        Returns:
+            JiraIssueResult: 결과 객체.
+        """
+        return self._post_comment(issue_key, note)

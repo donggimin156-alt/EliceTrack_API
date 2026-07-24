@@ -1,4 +1,4 @@
-# api/utils/board_api.py
+# api/endpoints/board_api.py
 """Elice 게시판(Board) REST API 클라이언트.
 
 BaseAPIClient(통신 엔진: 로깅/재시도/추적/Request-ID)를 상속하고, org-scoped 경로와
@@ -33,7 +33,7 @@ class BoardApiClient(BaseAPIClient):
             session,
             raise_for_status=False,
             base_url=env_config["REST_API_URL"].rstrip("/"),
-            timeout=(5, int(settings.elice_api_timeout)),
+            timeout=settings.api_timeout,
             client_name=f"Board-{env_name}-{role}",
         )
         # 게시판은 form(x-www-form-urlencoded) / multipart 바디를 쓴다.

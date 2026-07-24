@@ -1,8 +1,8 @@
-# utils/assertions/collection_assertions.py
+# utils/helpers/collection_assertions.py
 import logging
 from typing import Any, Iterable, Sized
 
-from utils.assertions.base import _fail
+from .base import _fail
 
 logger = logging.getLogger(__name__)
 
