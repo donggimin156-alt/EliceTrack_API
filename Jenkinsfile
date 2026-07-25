@@ -40,6 +40,11 @@ pipeline {
                     env.TARGET = (branch == 'main') ? 'prod' : 'dev'
                     env.PYTEST_ENV = 'qa'
                     env.GIT_BRANCH = branch
+                    // GitLab 전용 CI 변수를 코드(jira/discord/slack)가 읽으므로 Jenkins 값으로 매핑한다.
+                    // 이게 없으면 Jira 티켓 job_url이 "로컬 실행 환경", 알림 branch가 "local"로 찍힌다.
+                    env.CI_COMMIT_BRANCH = env.BRANCH_NAME
+                    env.CI_JOB_URL = env.BUILD_URL
+                    env.CI_PIPELINE_SOURCE = 'jenkins'
                 }
                 withCredentials([
                     file(credentialsId: "${env.CREDENTIALS_ENV_FILE}", variable: 'ENV_FILE'),
