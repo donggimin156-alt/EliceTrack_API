@@ -99,6 +99,9 @@ pipeline {
                     sh '''
                         . .venv/bin/activate
                         export TARGET="${TARGET}"
+                        # .env는 로컬 안전을 위해 false. CI 풀 회귀에서만 Jira 자동 버그 생성을 켠다.
+                        # load_dotenv는 기존 env를 override하지 않으므로 이 export가 .env의 false보다 우선한다.
+                        export ENABLE_JIRA_AUTO_BUG=true
                         ./scripts/run_tests.sh "${PYTEST_ENV}"
                     '''
                 }
