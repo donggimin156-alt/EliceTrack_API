@@ -11,7 +11,7 @@ import pytest
 from api.endpoints import schedule_api as schedule # 수업일정 API 엔드포인트 및 헬퍼 함수
 from api.schemas import schedule_schema as schedule_schemas # 수업일정 스키마 정의
 from utils import helpers # 검증 도구
-from utils.helpers.class_helper import assert_detail_error
+from utils.helpers.class_helper import assert_detail_error, assert_model_not_found_error
 
 # CS-001 prod 학습자 xfail — GET /schedule 반복 일정 기간 필드 vs exdate 포함 기준 (GitLab #6)
 CS001_PROD_SCHEDULE_ISSUE = (
@@ -87,6 +87,19 @@ COURSE_GET_OK_JSON_EXPECTATIONS = (
     ("_result.status_code", 200),
 )
 
+# CS-EQ-02 — 유효 UUID 형식이지만 존재하지 않는 classroom_id
+NONEXISTENT_BUT_VALID_UUID = "00000000-0000-0000-0000-000000000000"
+
+# CS-EQ-03 — 존재하지 않는 course_id (prod·dev 동일 nonsense 값)
+NONEXISTENT_COURSE_ID = 9999999
+
+# CS-EQ-03 — course/get 미존재 course_id 응답
+COURSE_GET_NOT_FOUND_JSON_EXPECTATIONS = (
+    ("_result.status", "fail"),
+    ("_result.status_code", 400),
+    ("fail_code", "resource_not_found"),
+)
+
 # CS-PARAM-01~04 — GET /schedule 필수 query 1개씩 누락 (parametrize용)
 SCHEDULE_PARAM_OMIT_FIELDS = [
     pytest.param("classroom_id", id="CS-PARAM-01"),
@@ -100,6 +113,8 @@ SCHEDULE_PARAM_OMIT_FIELDS = [
 #   CS-PARAM-01~04 — query 필수값 1개 누락
 #   CS-EDGE-02/03   — count 경계값(0, 1)
 #   CS-DATE-01      — dt_start_ge/le 역전
+#   CS-EQ-01~02     — classroom_id 형식 오류 / 미존재 UUID
+#   CS-EQ-03        — course/get 미존재 course_id 응답 검증
 # pytest id는 learner-prod / educator-dev 
 # CS-EDGE-01만 Notion id(CS-EDGE-01-…)가 필요해서 SCHEDULE_EDGE_CLIENTS를 별도로 두었음
 SCHEDULE_PARAM_CLIENTS = [
@@ -373,6 +388,83 @@ class TestScheduleCommon:
             f"detail.resp_json 없음 — code={body.get('code')!r}"
         )
         assert resp_json.get("code") == "invalid_datetime_format"
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_EQ_01(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-EQ-01] GET /schedule — classroom_id UUID 형식 오류 시 거부
+
+        CS-001과 동일 Bearer·query에서 valid classroom_id 마지막 1글자 삭제.
+        기대: 422, detail type uuid_parsing, loc query·classroom_id.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+        malformed_classroom_id = client.classroom_id[:-1]
+
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_ge,
+            dt_start_le=query.dt_start_le,
+            classroom_id=malformed_classroom_id,
+            count=query.count,
+        )
+
+        helpers.assert_status_code(resp, 422)
+        body = resp.json()
+        assert not isinstance(body, list), "UUID 형식 오류 시 일정 배열이 반환되면 안 됨"
+        helpers.assert_list_length(body["detail"], 1)
+        assert_detail_error(body, "uuid_parsing", ["query", "classroom_id"])
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_EQ_02(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-EQ-02] GET /schedule — 존재하지 않는 classroom_id(유효 UUID) 시 거부
+
+        CS-001과 동일 Bearer·query, classroom_id만 all-zero UUID.
+        기대: 409, code model_not_found.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_ge,
+            dt_start_le=query.dt_start_le,
+            classroom_id=NONEXISTENT_BUT_VALID_UUID,
+            count=query.count,
+        )
+
+        helpers.assert_status_code(resp, 409)
+        body = resp.json()
+        assert not isinstance(body, list), "미존재 classroom_id면 일정 배열이 반환되면 안 됨"
+        assert_model_not_found_error(body)
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_EQ_03(
+        self,
+        request,
+        client_fixture: str,
+    ):
+        """[CS-EQ-03] REST GET course/get — 존재하지 않는 course_id 시 거부
+
+        prod·dev 동일 nonsense course_id(9999999). CS-002와 동일 Bearer row.
+        REST course/get은 transport HTTP 200 + fail envelope(CS-AUTH-02와 동일).
+        기대: _result fail/400, fail_code resource_not_found.
+        """
+        client = request.getfixturevalue(client_fixture)
+        rest = schedule.ScheduleRestAPI.from_schedule_client(client)
+        resp = rest.get_course(NONEXISTENT_COURSE_ID)
+
+        helpers.assert_status_code(resp, 200)
+        body = resp.json()
+        for path, expected in COURSE_GET_NOT_FOUND_JSON_EXPECTATIONS:
+            helpers.assert_json_value(body, path, expected)
 
     @pytest.mark.parametrize("client_fixture", AUTH_01_SCHEDULE_TARGETS)
     def test_CS_AUTH_01(

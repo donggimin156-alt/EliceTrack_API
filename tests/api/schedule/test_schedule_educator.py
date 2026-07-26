@@ -81,6 +81,61 @@ class TestScheduleEducator:
                 else:
                     helpers.assert_status_code(del_resp, 200)
 
+    @pytest.mark.p0
+    def test_CS_004(
+        self,
+        schedule_dev_educator: schedule.ScheduleAPI,
+    ):
+        """[CS-004] DELETE /schedule — 삭제 후 GET으로 미존재 검증 (State Transition)
+
+        Setup: CS-003과 동일 POST(UUID summary, 오늘). dev 교육자
+        본 TC: DELETE 200 → GET 동일 summary 0건. teardown 불필요
+        """
+        client = schedule_dev_educator
+        day, dt_start_ge, dt_start_le = schedule.today_schedule_day_query()
+        summary = f"QA-CS-004-{uuid.uuid4().hex}"
+
+        create_resp = client.create_schedule(
+            summary=summary,
+            dt_start=day,
+            dt_end=day,
+        )
+        helpers.assert_status_code(create_resp, 200)
+        assert create_resp.json() == {}, f"POST body expected {{}}, got {create_resp.text!r}"
+
+        get_before = client.get_schedule(
+            dt_start_ge=dt_start_ge,
+            dt_start_le=dt_start_le,
+            count=schedule.SCHEDULE_COUNT_MAX,
+        )
+        helpers.assert_status_code(get_before, 200)
+        body_before = get_before.json()
+        assert isinstance(body_before, list), f"GET /schedule must return array, got {type(body_before)}"
+
+        matches_before = [item for item in body_before if item.get("summary") == summary]
+        assert len(matches_before) == 1, (
+            f"삭제 전 summary={summary!r} 일정 1건 기대, 실제 {len(matches_before)}건"
+        )
+        schedule_id = str(matches_before[0]["id"])
+
+        del_resp = client.delete_schedule(schedule_id)
+        helpers.assert_status_code(del_resp, 200)
+
+        get_after = client.get_schedule(
+            dt_start_ge=dt_start_ge,
+            dt_start_le=dt_start_le,
+            count=schedule.SCHEDULE_COUNT_MAX,
+        )
+        helpers.assert_status_code(get_after, 200)
+        body_after = get_after.json()
+        assert isinstance(body_after, list), f"GET /schedule must return array, got {type(body_after)}"
+
+        matches_after = [item for item in body_after if item.get("summary") == summary]
+        assert len(matches_after) == 0, (
+            f"DELETE 후 summary={summary!r} 일정 0건 기대, 실제 {len(matches_after)}건 "
+            f"(schedule_id={schedule_id}, 조회 구간 {day})"
+        )
+
     @pytest.mark.learner
     def test_CS_AUTH_03(
         self,
