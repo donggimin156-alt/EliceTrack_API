@@ -22,15 +22,15 @@ SCHEDULE_TARGETS = [    # 수업일정 API 테스트 대상 역할 픽스처 매
     pytest.param(
         "schedule_prod_learner",
         marks=[
-            pytest.mark.learner,
-            pytest.mark.xfail(
-                reason=(
-                    "[CS-001] prod 학습자: API가 exdate 기준으로 item을 내려주는 것으로 추정은 되지만 "
-                    "dt_start/rrule.until만으로는 조회월과 겹침 검증 불가 → item_active_date_range assert FAIL. "
-                    f"이슈: {CS001_PROD_SCHEDULE_ISSUE}"
-                ),
-                strict=False,
-            ),
+            pytest.mark.learner
+            # pytest.mark.xfail(
+            #     reason=(
+            #         "[CS-001] prod 학습자: API가 exdate 기준으로 item을 내려주는 것으로 추정은 되지만 "
+            #         "dt_start/rrule.until만으로는 조회월과 겹침 검증 불가 → item_active_date_range assert FAIL. "
+            #         f"이슈: {CS001_PROD_SCHEDULE_ISSUE}"
+            #     ),
+            #     strict=False,
+            # ),
         ],
         id="CS-001-learner-prod",
     ),
