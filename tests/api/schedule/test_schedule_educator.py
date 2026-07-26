@@ -178,6 +178,140 @@ class TestScheduleEducator:
             f"(조회 구간 {day}, 전체 {len(schedule_body)}건)"
         )
 
+    def test_CS_AUTH_04(
+        self,
+        schedule_dev_educator: schedule.ScheduleAPI,
+    ):
+        """[CS-AUTH-04] DELETE /schedule — Bearer 없이 호출 시 거부 및 일정 미삭제
+
+        Setup: dev 교육자 POST → schedule_id 확보.
+        Act: Authorization 없이 DELETE (x-elice-org-name-short + body classroom_id만).
+        기대: 403 no_access_token, GET 동일 summary 1건 유지. teardown: 교육자 DELETE.
+        """
+        client = schedule_dev_educator
+        day, dt_start_ge, dt_start_le = schedule.today_schedule_day_query()
+        summary = f"QA-CS-AUTH-04-{uuid.uuid4().hex}"
+
+        create_resp = client.create_schedule(
+            summary=summary,
+            dt_start=day,
+            dt_end=day,
+        )
+        helpers.assert_status_code(create_resp, 200)
+
+        get_setup = client.get_schedule(
+            dt_start_ge=dt_start_ge,
+            dt_start_le=dt_start_le,
+            count=schedule.SCHEDULE_COUNT_MAX,
+        )
+        helpers.assert_status_code(get_setup, 200)
+        matches_setup = [
+            item for item in get_setup.json() if item.get("summary") == summary
+        ]
+        assert len(matches_setup) == 1, (
+            f"Setup summary={summary!r} 1건 기대, 실제 {len(matches_setup)}건"
+        )
+        schedule_id = str(matches_setup[0]["id"])
+
+        del_path = f"{schedule.ScheduleAPI.BASE_PATH}/{schedule_id}"
+        try:
+            del_resp = client.raw(
+                "DELETE",
+                del_path,
+                headers={"x-elice-org-name-short": client.org},
+                json={"classroom_id": client.classroom_id},
+            )
+            helpers.assert_status_code(del_resp, 403)
+            body = del_resp.json()
+            assert isinstance(body, dict), f"403 응답은 JSON 객체여야 함: {type(body)}"
+            helpers.assert_json_value(body, "code", "no_access_token")
+
+            get_after = client.get_schedule(
+                dt_start_ge=dt_start_ge,
+                dt_start_le=dt_start_le,
+                count=schedule.SCHEDULE_COUNT_MAX,
+            )
+            helpers.assert_status_code(get_after, 200)
+            matches_after = [
+                item for item in get_after.json() if item.get("summary") == summary
+            ]
+            assert len(matches_after) == 1, (
+                f"Bearer 없는 DELETE 거부 후 summary={summary!r} 1건 유지 기대, "
+                f"실제 {len(matches_after)}건 (schedule_id={schedule_id})"
+            )
+        finally:
+            teardown = client.delete_schedule(schedule_id)
+            if teardown.status_code != 200:
+                logger.warning(
+                    "CS-AUTH-04 teardown DELETE /schedule/%s failed: %s %s",
+                    schedule_id,
+                    teardown.status_code,
+                    teardown.text,
+                )
+
+    @pytest.mark.learner
+    def test_CS_AUTH_05(
+        self,
+        schedule_dev_educator: schedule.ScheduleAPI,
+        schedule_dev_learner: schedule.ScheduleAPI,
+    ):
+        """[CS-AUTH-05] DELETE /schedule — dev 학습자 토큰으로 삭제 호출 시 거부 및 일정 미삭제
+
+        Setup: dev 교육자 POST → schedule_id 확보.
+        Act: dev 학습자 Bearer로 동일 schedule_id DELETE.
+        기대: 403 has_no_permission, GET summary 1건 유지. teardown: 교육자 DELETE 200.
+        """
+        educator = schedule_dev_educator
+        learner = schedule_dev_learner
+        day, dt_start_ge, dt_start_le = schedule.today_schedule_day_query()
+        summary = f"QA-CS-AUTH-05-{uuid.uuid4().hex}"
+
+        create_resp = educator.create_schedule(
+            summary=summary,
+            dt_start=day,
+            dt_end=day,
+        )
+        helpers.assert_status_code(create_resp, 200)
+
+        get_setup = educator.get_schedule(
+            dt_start_ge=dt_start_ge,
+            dt_start_le=dt_start_le,
+            count=schedule.SCHEDULE_COUNT_MAX,
+        )
+        helpers.assert_status_code(get_setup, 200)
+        matches_setup = [
+            item for item in get_setup.json() if item.get("summary") == summary
+        ]
+        assert len(matches_setup) == 1, (
+            f"Setup summary={summary!r} 1건 기대, 실제 {len(matches_setup)}건"
+        )
+        schedule_id = str(matches_setup[0]["id"])
+
+        try:
+            del_resp = learner.delete_schedule(schedule_id)
+            helpers.assert_status_code(del_resp, 403)
+            body = del_resp.json()
+            assert isinstance(body, dict), f"403 응답은 JSON 객체여야 함: {type(body)}"
+            helpers.assert_json_value(body, "code", "has_no_permission")
+            helpers.assert_json_value(body, "message", "You have no permission")
+
+            get_after = educator.get_schedule(
+                dt_start_ge=dt_start_ge,
+                dt_start_le=dt_start_le,
+                count=schedule.SCHEDULE_COUNT_MAX,
+            )
+            helpers.assert_status_code(get_after, 200)
+            matches_after = [
+                item for item in get_after.json() if item.get("summary") == summary
+            ]
+            assert len(matches_after) == 1, (
+                f"학습자 DELETE 거부 후 summary={summary!r} 1건 유지 기대, "
+                f"실제 {len(matches_after)}건 (schedule_id={schedule_id})"
+            )
+        finally:
+            teardown = educator.delete_schedule(schedule_id)
+            helpers.assert_status_code(teardown, 200)
+
     def test_CS_PARAM_05(
         self,
         schedule_dev_educator: schedule.ScheduleAPI,
