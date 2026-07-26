@@ -139,7 +139,7 @@ class TestScheduleCommon:
         
         classroom_id = client.classroom_id
 
-        # 예시: “2026년 7월 1일 ~ 7월 31일, 최대 40건” (이번달 기준)이라는 조회 조건이 담긴 데이터
+        # 예시: “2026년 7월 1일 ~ 7월 31일, 최대 50건” (이번달 기준)이라는 조회 조건이 담긴 데이터
         query = schedule_query_params   
 
         # 수업 일정 API 호출 실행

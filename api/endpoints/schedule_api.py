@@ -340,7 +340,7 @@ def resolve_schedule_query_params() -> ScheduleQueryParams:
     return ScheduleQueryParams(
         dt_start_ge=os.getenv("SCHEDULE_DT_START_GE", default_start),
         dt_start_le=os.getenv("SCHEDULE_DT_START_LE", default_end),
-        count=int(os.getenv("SCHEDULE_COUNT", "40")),
+        count=int(os.getenv("SCHEDULE_COUNT", str(SCHEDULE_COUNT_MAX))),
     )
 
 

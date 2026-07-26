@@ -46,7 +46,7 @@ class TestScheduleEducator:
             get_resp = client.get_schedule( # 제대로 만들었는지 확인을 위해 조회
                 dt_start_ge=dt_start_ge,
                 dt_start_le=dt_start_le,
-                count=40,
+                count=schedule.SCHEDULE_COUNT_MAX,
             )
             helpers.assert_status_code(get_resp, 200)
             body = get_resp.json()
@@ -78,3 +78,45 @@ class TestScheduleEducator:
                     )
                 else:
                     helpers.assert_status_code(del_resp, 200)
+
+    @pytest.mark.learner
+    def test_CS_AUTH_03(
+        self,
+        schedule_dev_learner: schedule.ScheduleAPI,
+    ):
+        """[CS-AUTH-03] POST /schedule — dev 학습자 토큰으로 교육자 전용 생성 API 호출 시 거부
+
+        CS-003과 동일 body(UUID summary, 오늘 dt_start/dt_end). Bearer는 dev 학습자.
+        기대: POST 403, code has_no_permission, message You have no permission,
+        GET 동일 summary·오늘 구간 0건(미생성). teardown 불필요.
+        """
+        client = schedule_dev_learner
+        day, dt_start_ge, dt_start_le = schedule.today_schedule_day_query()
+        summary = f"QA-CS-AUTH-03-{uuid.uuid4().hex}"
+
+        create_resp = client.create_schedule(
+            summary=summary,
+            dt_start=day,
+            dt_end=day,
+        )
+        helpers.assert_status_code(create_resp, 403)
+        body = create_resp.json()
+        assert isinstance(body, dict), f"403 응답은 JSON 객체여야 함: {type(body)}"
+        assert not isinstance(body, list), "권한 거부 시 일정 JSON 배열이 반환되면 안 됨"
+        helpers.assert_json_value(body, "code", "has_no_permission")
+        helpers.assert_json_value(body, "message", "You have no permission")
+
+        get_resp = client.get_schedule(
+            dt_start_ge=dt_start_ge,
+            dt_start_le=dt_start_le,
+            count=schedule.SCHEDULE_COUNT_MAX,
+        )
+        helpers.assert_status_code(get_resp, 200)
+        schedule_body = get_resp.json()
+        assert isinstance(schedule_body, list), f"GET /schedule must return array, got {type(schedule_body)}"
+
+        matches = [item for item in schedule_body if item.get("summary") == summary]
+        assert len(matches) == 0, (
+            f"POST 거부 후 summary={summary!r} 일정이 {len(matches)}건 조회됨 — 생성되면 안 됨 "
+            f"(조회 구간 {day}, 전체 {len(schedule_body)}건)"
+        )
