@@ -87,7 +87,7 @@ COURSE_GET_OK_JSON_EXPECTATIONS = (
     ("_result.status_code", 200),
 )
 
-# CS-PARAM-01~04 — GET /schedule 필수 query 1개씩 누락 (CS-001 query·Bearer O, prod/dev 각 2 row → 8 runs)
+# CS-PARAM-01~04 — GET /schedule 필수 query 1개씩 누락 (parametrize용)
 SCHEDULE_PARAM_OMIT_FIELDS = [
     pytest.param("classroom_id", id="CS-PARAM-01"),
     pytest.param("dt_start_ge", id="CS-PARAM-02"),
@@ -95,12 +95,19 @@ SCHEDULE_PARAM_OMIT_FIELDS = [
     pytest.param("count", id="CS-PARAM-04"),
 ]
 
+# GET /schedule 공통 parametrize — prod 학습자 + dev 교육자 2 row (CS-001과 동일 역할 분리)
+# 아래 TC들은 "호스트·절차·기대 응답"이 prod/dev 동일하고 Bearer만 row별로 다름
+#   CS-PARAM-01~04 — query 필수값 1개 누락
+#   CS-EDGE-02/03   — count 경계값(0, 1)
+#   CS-DATE-01      — dt_start_ge/le 역전
+# pytest id는 learner-prod / educator-dev 
+# CS-EDGE-01만 Notion id(CS-EDGE-01-…)가 필요해서 SCHEDULE_EDGE_CLIENTS를 별도로 두었음
 SCHEDULE_PARAM_CLIENTS = [
     pytest.param("schedule_prod_learner", marks=pytest.mark.learner, id="learner-prod"),
     pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="educator-dev"),
 ]
 
-# CS-EDGE-01 — count 상한+1(51), prod·dev 동일 절차 (CS-PARAM과 같은 클라이언트, id만 Notion TC에 맞춤)
+# CS-EDGE-01 — count=51. SCHEDULE_PARAM_CLIENTS와 픽스처 동일, pytest id만 Notion TC에 맞춤
 SCHEDULE_EDGE_CLIENTS = [
     pytest.param("schedule_prod_learner", marks=pytest.mark.learner, id="CS-EDGE-01-learner-prod"),
     pytest.param("schedule_dev_educator", marks=pytest.mark.educator, id="CS-EDGE-01-educator-dev"),
@@ -270,6 +277,102 @@ class TestScheduleCommon:
         assert limit_detail.get("loc") == ["query", "limit"]
         assert limit_detail.get("type") == "value_error.number.not_le"
         assert (limit_detail.get("ctx") or {}).get("limit_value") == schedule.SCHEDULE_COUNT_MAX
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_EDGE_02(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-EDGE-02] GET /schedule — count=0 (하한 미만) 시 거부
+
+        BVA invalid 하한. prod·dev 동일 envelope (CS-EDGE-01과 대칭).
+        기대: 409, elice_calendar_unexpected_result, limit not_ge, limit_value 1.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_ge,
+            dt_start_le=query.dt_start_le,
+            classroom_id=client.classroom_id,
+            count=schedule.SCHEDULE_COUNT_UNDER_LIMIT,
+        )
+
+        helpers.assert_status_code(resp, 409)
+        body = resp.json()
+        assert not isinstance(body, list), "count=0이면 일정 배열이 반환되면 안 됨"
+        helpers.assert_json_value(body, "code", "elice_calendar_unexpected_result")
+
+        limit_detail = schedule.parse_calendar_count_limit_detail(body)
+        assert limit_detail is not None, (
+            f"calendar limit detail 없음 — code={body.get('code')!r}"
+        )
+        assert limit_detail.get("loc") == ["query", "limit"]
+        assert limit_detail.get("type") == "value_error.number.not_ge"
+        assert (limit_detail.get("ctx") or {}).get("limit_value") == schedule.SCHEDULE_COUNT_MIN
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_EDGE_03(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-EDGE-03] GET /schedule — count=1 (최소 유효) 정상 조회
+
+        BVA valid 최소. 기대: 200, JSON 배열, 0 ≤ len ≤ 1.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_ge,
+            dt_start_le=query.dt_start_le,
+            classroom_id=client.classroom_id,
+            count=schedule.SCHEDULE_COUNT_MIN,
+        )
+
+        helpers.assert_status_code(resp, 200)
+        body = resp.json()
+        assert isinstance(body, list), f"응답이 JSON 배열이 아님: {type(body)}"
+        assert 0 <= len(body) <= schedule.SCHEDULE_COUNT_MIN, (
+            f"count=1이면 0~1건만 허용, 실제 {len(body)}건"
+        )
+
+    @pytest.mark.parametrize("client_fixture", SCHEDULE_PARAM_CLIENTS)
+    def test_CS_DATE_01(
+        self,
+        request,
+        client_fixture: str,
+        schedule_query_params: schedule.ScheduleQueryParams,
+    ):
+        """[CS-DATE-01] GET /schedule — dt_start_ge > dt_start_le (기간 역전) 시 거부
+
+        결정 테이블 / Negative — 단일 필드 누락(CS-PARAM)과 구분.
+        기대: 409, elice_calendar_unexpected_result, resp_json.code invalid_datetime_format.
+        """
+        client = request.getfixturevalue(client_fixture)
+        query = schedule_query_params
+
+        resp = client.get_schedule(
+            dt_start_ge=query.dt_start_le,  # 역전 테스트를 위해 반대로 삽입
+            dt_start_le=query.dt_start_ge,
+            classroom_id=client.classroom_id,
+            count=query.count,
+        )
+
+        helpers.assert_status_code(resp, 409)
+        body = resp.json()
+        assert not isinstance(body, list), "기간 역전 시 일정 배열이 반환되면 안 됨"
+        helpers.assert_json_value(body, "code", "elice_calendar_unexpected_result")
+
+        resp_json = schedule.parse_calendar_unexpected_resp_json(body)
+        assert resp_json is not None, (
+            f"detail.resp_json 없음 — code={body.get('code')!r}"
+        )
+        assert resp_json.get("code") == "invalid_datetime_format"
 
     @pytest.mark.parametrize("client_fixture", AUTH_01_SCHEDULE_TARGETS)
     def test_CS_AUTH_01(

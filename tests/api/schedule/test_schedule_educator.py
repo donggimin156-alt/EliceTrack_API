@@ -7,6 +7,7 @@ import pytest
 
 from api.endpoints import schedule_api as schedule
 from utils import helpers
+from utils.helpers.class_helper import assert_detail_error
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class TestScheduleEducator:
         schedule_dev_educator: schedule.ScheduleAPI,
     ):
         """[CS-003] POST /schedule — 필수 필드만으로 일정 생성 후 GET으로 검증, DELETE teardown
+
 
         Required body: classroom_id, summary, dt_start, dt_end (오늘 날짜).
         summary는 UUID 접두로 유일. 기대: POST 200 {}, GET 1건 일치, DELETE 200.
@@ -120,3 +122,23 @@ class TestScheduleEducator:
             f"POST 거부 후 summary={summary!r} 일정이 {len(matches)}건 조회됨 — 생성되면 안 됨 "
             f"(조회 구간 {day}, 전체 {len(schedule_body)}건)"
         )
+
+    def test_CS_PARAM_05(
+        self,
+        schedule_dev_educator: schedule.ScheduleAPI,
+    ):
+        """[CS-PARAM-05] POST /schedule — body none(미전송) 시 422
+
+        CS-PARAM-01~04(GET query 누락)의 POST 대칭. dev 교육자 only.
+        기대: 422, detail 1건, type missing, loc body, msg Field required.
+        """
+        client = schedule_dev_educator
+
+        resp = client.post(schedule.ScheduleAPI.BASE_PATH)
+
+        helpers.assert_status_code(resp, 422)
+        body = resp.json()
+        assert not isinstance(body, list), "body 누락 시 일정 배열이 반환되면 안 됨"
+        helpers.assert_list_length(body["detail"], 1)
+        assert_detail_error(body, "missing", ["body"])
+        helpers.assert_json_value(body, "detail[0].msg", "Field required")
