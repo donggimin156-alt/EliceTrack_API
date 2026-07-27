@@ -31,6 +31,16 @@ def schedule_dev_educator() -> schedule.ScheduleAPI:
     return _make_schedule_client("dev", "EDUCATOR", "dev 교육자 인증 정보 없음 (EDUCATOR_LOGIN_ID/PASSWORD)")
 
 
+@pytest.fixture(scope="session")
+def schedule_dev_learner() -> schedule.ScheduleAPI:
+    """dev 학습자 수업일정 클라이언트 (CS-AUTH-03 등)"""
+    return _make_schedule_client(
+        "dev",
+        "LEARNER",
+        "dev 학습자 인증 정보 없음 (LEARNER_LOGIN_ID/PASSWORD 또는 DEV_LEARNER_TOKEN)",
+    )
+
+
 @pytest.fixture(scope="function")
 def schedule_query_params() -> schedule.ScheduleQueryParams:
     """CS-001 등 기간 조회 TC에 사용할 dt_start_ge/le, count 파라미터"""

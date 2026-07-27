@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # 리뷰 #2: validate(instance=..., schema=...)를 테스트 코드에서 반복 호출하지 않도록
 # 기존 공용 함수를 도메인 친화적인 이름으로 재노출한다. (새로 만들지 않고 재사용)
+assert_schema = assert_valid_schema
 
 
 # ==========================================

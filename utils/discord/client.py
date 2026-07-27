@@ -101,25 +101,66 @@ class DiscordClient:
             error_body = e.response.text if e.response is not None else "N/A"
             logger.error(f"[디스코드 Error] HTTP Error {e.response.status_code}: {error_body}")
 
+    def _bullet_list(self, items: list[str]) -> str:
+        """테스트 이름 목록을 불릿 문자열로 만들고 Discord Field 제약에 맞춰 잘라냅니다.
+
+        Discord는 Field 하나의 value가 1024자를 넘으면 요청을 거부하므로,
+        개수(max_failed_tests) 제한과 별개로 길이도 함께 방어합니다.
+
+        Args:
+            items (list[str]): 나열할 테스트 이름 목록
+
+        Returns:
+            str: Discord 마크다운 불릿 목록 문자열
+        """
+        max_show = self.settings.max_failed_tests
+        lines = [f"• `{item}`" for item in items[:max_show]]
+
+        # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
+        if len(items) > max_show:
+            lines.append(f"... and {len(items) - max_show} more")
+
+        text = "\n".join(lines)
+        if len(text) > self.settings.max_field_length:
+            text = text[:self.settings.max_field_length - 15] + "\n... [TRUNCATED]"
+
+        return text
+
     def send_summary_report(
-        self, 
-        passed: int, 
-        failed: int, 
-        skipped: int, 
-        duration_sec: float, 
-        failed_tests: list[str] | None = None
+        self,
+        passed: int,
+        failed: int,
+        skipped: int,
+        duration_sec: float,
+        failed_tests: list[str] | None = None,
+        xfailed: int = 0,
+        xfail_reasons: list[str] | None = None,
+        xpass_reasons: list[str] | None = None
     ) -> None:
         """
         테스트 세션 종료 후 결과를 취합하여 Discord에 요약 알림(Summary Report)을 전송합니다.
-        
+
+        Discord는 Slack과 달리 한눈에 들어오는 간략한 요약을 유지합니다.
+        상세 내역(Skipped/xfail 개수, 알려진 버그 목록, XPASS 목록)은 Slack에서만 표시합니다.
+
+        ⚠️ xfail_reasons / xpass_reasons 는 화면에 쓰지 않지만 파라미터는 반드시 남겨두세요.
+           discord_hook 이 Slack 훅과 같은 요약 딕셔너리를 send_summary_report(**summary) 로
+           통째로 넘기므로, 파라미터를 지우면 TypeError 가 나고 그 예외가 훅의 except 에
+           삼켜져 Discord 알림이 아무 흔적 없이 사라집니다.
+
         Args:
             passed (int): 성공한 테스트 케이스 수
             failed (int): 실패한 테스트 케이스 수
             skipped (int): 건너뛴 테스트 케이스 수
             duration_sec (float): 전체 테스트 소요 시간(초)
             failed_tests (list[str] | None): 실패한 테스트 케이스의 이름 리스트 (선택 사항)
+            xfailed (int): 알려진 버그로 xfail 처리된 테스트 수 (Total 계산에만 사용)
+            xfail_reasons (list[str] | None): 미표시. 시그니처 호환용 (위 주의 참고)
+            xpass_reasons (list[str] | None): 미표시. 시그니처 호환용 (위 주의 참고)
         """
-        total = passed + failed + skipped
+        # 표시는 하지 않지만 xfailed 는 Total 에 반드시 더합니다.
+        # (빠뜨리면 Discord Total 이 Slack/Allure Total 보다 적게 나옵니다)
+        total = passed + failed + skipped + xfailed
         success_rate = (passed / total * 100) if total > 0 else 0
         is_success = failed == 0
 
@@ -148,14 +189,7 @@ class DiscordClient:
             builder.add_field("CI Pipeline", f"[View CI Pipeline 🔗]({job_url})", inline=False)
 
         if failed_tests:
-            max_show = self.settings.max_failed_tests
-            failed_list_str = "\n".join([f"• `{t}`" for t in failed_tests[:max_show]])
-            
-            # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
-            if len(failed_tests) > max_show:
-                failed_list_str += f"\n... and {len(failed_tests) - max_show} more"
-            
-            builder.add_field("🚨 Failed Tests", failed_list_str, inline=False)
+            builder.add_field("🚨 Failed Tests", self._bullet_list(failed_tests), inline=False)
 
         builder.set_footer("TEAM2 CI/CD 자동화 시스템")
 

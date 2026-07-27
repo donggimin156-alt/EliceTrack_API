@@ -29,7 +29,9 @@ SCHEDULE_CLASSROOM_COURSE_LIST_COUNT = 9999
 
 # GET /schedule query count — Elice Calendar limit (CS-EDGE-01 실측, prod·dev 동일)
 SCHEDULE_COUNT_MAX = 50
+SCHEDULE_COUNT_MIN = 1
 SCHEDULE_COUNT_OVER_LIMIT = SCHEDULE_COUNT_MAX + 1  # BVA: 유효 상한(50) 바로 다음 값
+SCHEDULE_COUNT_UNDER_LIMIT = SCHEDULE_COUNT_MIN - 1  # BVA: 유효 하한(1) 바로 아래 — 0
 
 
 @dataclass(frozen=True)
@@ -340,7 +342,7 @@ def resolve_schedule_query_params() -> ScheduleQueryParams:
     return ScheduleQueryParams(
         dt_start_ge=os.getenv("SCHEDULE_DT_START_GE", default_start),
         dt_start_le=os.getenv("SCHEDULE_DT_START_LE", default_end),
-        count=int(os.getenv("SCHEDULE_COUNT", "40")),
+        count=int(os.getenv("SCHEDULE_COUNT", str(SCHEDULE_COUNT_MAX))),
     )
 
 
@@ -375,6 +377,22 @@ def parse_calendar_count_limit_detail(body: dict[str, Any]) -> dict[str, Any] | 
     if not isinstance(limit_detail, dict):
         return None
     return limit_detail
+
+
+def parse_calendar_unexpected_resp_json(body: dict[str, Any]) -> dict[str, Any] | None:
+    """elice_calendar_unexpected_result 409 envelope의 detail.resp_json (CS-DATE-01 등).
+
+    assert·pytest 의존 없음 — test에서 code 등 기대값과 비교한다.
+    """
+    if body.get("code") != "elice_calendar_unexpected_result":
+        return None
+    detail = body.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    resp_json = detail.get("resp_json")
+    if not isinstance(resp_json, dict):
+        return None
+    return resp_json
 
 
 def item_active_date_range(item: dict[str, Any], query_end_date: str) -> tuple[str, str]:
