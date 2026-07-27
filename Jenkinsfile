@@ -29,6 +29,9 @@ pipeline {
         CI_COMMIT_BRANCH = "${BRANCH_NAME}"
         CI_JOB_URL = "${BUILD_URL}"
         CI_PIPELINE_SOURCE = 'jenkins'
+        // 빌드별 고정 URL (Slack — #N 회차 리포트). latest/ 와 달리 다음 빌드에 덮이지 않음.
+        ALLURE_REPORT_URL = "http://61.107.201.242/allure/${BRANCH_NAME}/${BUILD_NUMBER}/"
+        ALLURE_JENKINS_URL = "${BUILD_URL}allure/"
     }
 
     triggers {
@@ -101,6 +104,9 @@ pipeline {
                         export CI_JOB_URL="${CI_JOB_URL:-$BUILD_URL}"
                         export CI_COMMIT_BRANCH="${CI_COMMIT_BRANCH:-$BRANCH_NAME}"
                         export CI_PIPELINE_SOURCE="${CI_PIPELINE_SOURCE:-jenkins}"
+                        export ALLURE_REPORT_URL="${ALLURE_REPORT_URL}"
+                        export ALLURE_JENKINS_URL="${ALLURE_JENKINS_URL}"
+                        export BUILD_NUMBER="${BUILD_NUMBER}"
                         # .env는 로컬 안전을 위해 false. CI 풀 회귀에서만 Jira 자동 버그 생성을 켠다.
                         # load_dotenv는 기존 env를 override하지 않으므로 이 export가 .env의 false보다 우선한다.
                         export ENABLE_JIRA_AUTO_BUG=true
@@ -114,6 +120,7 @@ pipeline {
             steps {
                 sh '''
                     export BRANCH="${BRANCH_NAME}"
+                    export BUILD_NUMBER="${BUILD_NUMBER}"
                     export ALLURE_PUBLIC_ROOT="${ALLURE_PUBLIC_ROOT}"
                     if command -v allure >/dev/null 2>&1; then
                       ./scripts/publish_allure_latest.sh

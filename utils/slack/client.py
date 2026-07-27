@@ -166,8 +166,11 @@ class SlackClient:
         branch_name = os.getenv("CI_COMMIT_BRANCH", "local")
         trigger = os.getenv("CI_PIPELINE_SOURCE", "manual")
         job_url = (os.getenv("CI_JOB_URL") or os.getenv("BUILD_URL") or "").strip()
+        allure_url = (os.getenv("ALLURE_REPORT_URL") or os.getenv("ALLURE_LATEST_URL") or "").strip()
+        build_no = os.getenv("BUILD_NUMBER", "").strip()
+        allure_label = f"build #{build_no} report" if build_no else "Open report"
 
-        # Slack Section의 fields는 최대 10개까지 허용되므로 8개는 안전합니다.
+        # Slack Section의 fields는 최대 10개까지 허용됩니다.
         fields = [
             f"*Total Tests:*\n{total}",
             f"*Success Rate:*\n{success_rate:.1f}%",
@@ -180,10 +183,14 @@ class SlackClient:
         ]
         if job_url.startswith("http"):
             fields.append(f"*Jenkins:*\n<{job_url}|Open build #>")
+        if allure_url.startswith("http"):
+            fields.append(f"*Allure:*\n<{allure_url}|{allure_label}>")
         builder.add_section_fields(fields)
 
         if job_url.startswith("http"):
             builder.add_button("View Jenkins Build 🔗", job_url)
+        if allure_url.startswith("http"):
+            builder.add_button(f"Allure #{build_no} 📊" if build_no else "View Allure Report 📊", allure_url)
 
         if failed_tests:
             builder.add_divider()
