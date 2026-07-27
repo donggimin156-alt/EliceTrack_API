@@ -68,3 +68,61 @@ class TestCourseAddDeleteHappyPath:
             match_key="course_id",
             match_value=course_id,
         )
+
+class TestE2ECourseManagement:
+    """E2E-1: 과목 추가 → 순서 변경 → 클래스에서 제거"""
+
+    def test_add_reorder_delete_full_cycle(
+        self,
+        educator_class_api,
+        assert_response,
+        completed_bulk_add_task,
+        fetch_course_list,
+    ):
+        # 1. 과목 추가 (fixture에서 bulk add 완료 및 검증까지 수행)
+        _, _, added_course_id = completed_bulk_add_task
+
+        # 2. 추가된 과목이 목록에 나타날 때까지 대기
+        courses = wait_until_item_in_list(
+            fetch_course_list,
+            match_key="course_id",
+            match_value=added_course_id,
+        )
+
+        # 3. 추가된 과목을 첫 번째로 이동하도록 순서 구성
+        current_order = [course["course_id"] for course in courses]
+        expected_order = [
+            added_course_id,
+            *[cid for cid in current_order if cid != added_course_id],
+        ]
+
+        # 4. 순서 변경
+        reorder_resp = educator_class_api.reorder_courses(expected_order)
+        assert_response(reorder_resp, 200)
+
+        # 5. 재조회하여 순서가 실제 반영되었는지 검증
+        verify_resp = educator_class_api.get_course_list(
+            skip=0,
+            count=len(expected_order),
+        )
+        reordered_courses = assert_response(verify_resp, 200)
+
+        actual_order = [
+            course["course_id"]
+            for course in reordered_courses
+        ]
+
+        assert actual_order == expected_order, (
+            "순서 변경 결과가 재조회 시 그대로 반영되어야 합니다."
+        )
+
+        # 6. 과목 삭제
+        delete_resp = educator_class_api.delete_course(added_course_id)
+        assert_response(delete_resp, 200)
+
+        # 7. 삭제 완료될 때까지 대기 후 목록에서 제거되었는지 확인
+        wait_until_item_not_in_list(
+            fetch_course_list,
+            match_key="course_id",
+            match_value=added_course_id,
+        )
