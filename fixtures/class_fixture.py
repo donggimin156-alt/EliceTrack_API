@@ -210,6 +210,15 @@ def educator_class_api(class_api_factory) -> ClassApi:
         skip_msg="dev 교육자 토큰 없음 (DEV_EDUCATOR_TOKEN)",
     )
 
+@pytest.fixture(scope="session")
+def learner_class_api(class_api_factory) -> ClassApi:
+    """dev 학습자용 ClassApi"""
+    return class_api_factory(
+        env_name="dev",
+        role="LEARNER",
+        skip_msg="dev 학습자 토큰 없음 (DEV_LEARNER_TOKEN)",
+    )
+
 
 @pytest.fixture
 def wait_for_task_completion(assert_response):
@@ -320,3 +329,17 @@ def completed_bulk_add_task(educator_class_api, assert_response, bulk_add_task_i
     added_course_id = new_course_ids.pop()
 
     return task_id, final, added_course_id
+
+@pytest.fixture
+def fetch_course_list(educator_class_api, assert_response):
+    """현재 강의실의 전체 과목 목록을 조회하는 헬퍼.
+    get_course_count()로 정확한 총 개수를 구한 뒤 그 개수만큼 요청한다.
+    (기존 test_course_bulk_add.py가 쓰던 MAX_PAGE_SIZE 고정 방식은
+    실제 과목 수가 MAX_PAGE_SIZE를 넘을 경우 새 항목을 놓칠 수 있어 폐기)
+    """
+    def _fetch():
+        count_resp = educator_class_api.get_course_count()
+        total = assert_response(count_resp, 200)
+        resp = educator_class_api.get_course_list(skip=0, count=total)
+        return assert_response(resp, 200)
+    return _fetch

@@ -285,3 +285,16 @@ def cleanup_resource_if_exists(
         delete_fn()
     except Exception as e:
         logger.warning("%s 정리 실패: %s", resource_label, e)
+
+
+def assert_progress_in_range(progress) -> float:
+    """learning_progress 값(문자열로 내려옴, 예: "5.26")이 0~100 범위의 숫자인지 검증하고
+    float으로 변환한 값을 반환한다.
+    """
+    value = float(progress)
+    assert 0 <= value <= 100, f"Expected 0<=progress<=100 but got {value}"
+    return value
+
+def extract_course_ids(courses: list[dict]) -> list[int]:
+    """과목 목록 응답에서 course_id만 추출한다."""
+    return [course["course_id"] for course in courses]

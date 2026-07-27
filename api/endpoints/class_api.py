@@ -63,3 +63,14 @@ class ClassApi(BaseAPIClient):
     def get_course_count(self) -> requests.Response:
         """GET /classroom/{classroom_id}/course/count"""
         return self.get(f"{self.course_path}/count")
+
+    def reorder_courses(
+        self,
+        ordered_course_ids: list[int | str],
+    ) -> requests.Response:
+        """POST /classroom/{classroom_id}/course/reorder"""
+
+        return self.post(
+            f"{self.course_path}/reorder",
+            json={"course_ids": ordered_course_ids},
+        )
