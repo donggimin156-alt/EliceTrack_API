@@ -46,6 +46,11 @@ class BoardApiClient(BaseAPIClient):
         self.role = role
         self.org = env_config["ORG"]
         self.classroom_id = env_config["CLASSROOM_ID"]
+        # 코호트를 운영하는 환경에만 존재한다(prod: [QA5], dev: 없음).
+        # 값이 있으면 게시글 작성 시 함께 보내야 웹 UI 게시판 목록에 노출된다.
+        # UI는 /classroom/{id}/article?filter_cohort_id=... 로 조회하므로,
+        # cohort_id 없이 만든 글은 cohort=null이 되어 API 목록에는 있어도 화면에서 사라진다.
+        self.cohort_id = env_config.get("COHORT_ID")
         self.board_id = env_config["BOARD_ID"]
         self.others_article_id = env_config["OTHERS_ARTICLE_ID"]
         # 인증/헤더 음성 테스트에서 헤더를 직접 조립할 때 쓰도록 원본 토큰을 노출한다.
@@ -79,20 +84,47 @@ class BoardApiClient(BaseAPIClient):
         return requests.request(method, self._abs(path), headers=headers or {}, timeout=self.timeout, **kwargs)
 
     # ── 게시글 (board/article) ──
+    def _article_payload(
+        self,
+        title: str,
+        content: str,
+        is_secret: bool,
+        classroom_id: str | None,
+        cohort_id: str | None,
+    ) -> dict:
+        """게시글 작성/수정 공통 폼 데이터를 만든다.
+
+        cohort_id는 코호트를 운영하는 환경(prod)에만 값이 있으므로, 있을 때만 실어 보낸다.
+        누락하면 글의 cohort가 null이 되어 웹 UI 게시판 목록(filter_cohort_id)에서 빠진다.
+        """
+        data = {
+            "title": title,
+            "content": content,
+            "is_secret": "true" if is_secret else "false",
+            "classroom_id": classroom_id or self.classroom_id,
+        }
+        resolved_cohort = cohort_id or self.cohort_id
+        if resolved_cohort:
+            data["cohort_id"] = resolved_cohort
+        return data
+
     def create_article(
         self,
         title: str,
         content: str,
         is_secret: bool = False,
         classroom_id: str | None = None,
+        cohort_id: str | None = None,
     ) -> requests.Response:
-        """게시글 작성. board_article_id 없이 POST → 신규 작성."""
-        return self.post("board/article/edit/", data={
-            "title": title,
-            "content": content,
-            "is_secret": "true" if is_secret else "false",
-            "classroom_id": classroom_id or self.classroom_id,
-        })
+        """게시글 작성. board_article_id 없이 POST → 신규 작성.
+
+        코호트 환경(prod)에서는 cohort_id가 자동으로 함께 전송된다.
+        cohort_id 없이 만드는 경계 케이스는 create_article_raw로 직접 payload를 구성한다.
+        """
+        return self.post(
+            "board/article/edit/",
+            data=self._article_payload(title, content, is_secret, classroom_id, cohort_id),
+        )
 
     def create_article_raw(self, data: dict) -> requests.Response:
         """게시글 작성 원본 폼 호출 (음성/경계 테스트용 — 필수 필드 누락 등 임의 payload)."""
@@ -105,15 +137,17 @@ class BoardApiClient(BaseAPIClient):
         content: str,
         is_secret: bool = False,
         classroom_id: str | None = None,
+        cohort_id: str | None = None,
     ) -> requests.Response:
-        """게시글 수정. board_article_id 포함 → 기존 글 수정 (본인만)."""
-        return self.post("board/article/edit/", data={
-            "board_article_id": board_article_id,
-            "title": title,
-            "content": content,
-            "is_secret": "true" if is_secret else "false",
-            "classroom_id": classroom_id or self.classroom_id,
-        })
+        """게시글 수정. board_article_id 포함 → 기존 글 수정 (본인만).
+
+        수정도 작성과 같은 엔드포인트를 쓰며 payload 전체를 덮어쓴다.
+        cohort_id를 빼고 보내면 기존 코호트 연결이 지워져(실측: 값 → null)
+        수정 이후 웹 UI 게시판 목록에서 글이 사라지므로 반드시 함께 보낸다.
+        """
+        data = self._article_payload(title, content, is_secret, classroom_id, cohort_id)
+        data["board_article_id"] = board_article_id
+        return self.post("board/article/edit/", data=data)
 
     def get_article(self, board_article_id: int) -> requests.Response:
         """게시글 단건조회."""
