@@ -1,0 +1,20 @@
+# requirements.txt
+# 프로덕션 빌드 및 CI/CD 자동화 테스트 실행에 필수적인 코어 패키지 목록.
+# 의존성 충돌과 환경별 파편화를 막기 위해 명시적인 버전 범위(>=, <)를 강제합니다.
+
+# 1. Core Testing Framework
+pytest>=8.0.0,<9.0.0
+requests>=2.31.0,<3.0.0
+urllib3>=2.0.0,<3.0.0
+
+# 2. Enterprise & Scale Add-ons
+allure-pytest>=2.13.5,<3.0.0      # Allure 테스트 리포트 생성 플러그인
+pydantic-settings>=2.1.0,<3.0.0   # 환경 변수(.env) 자동 로드 및 검증
+python-dotenv>=1.0.1,<2.0.0       # .env 파일 파싱 기본 라이브러리
+
+# 3. Data & Validation
+jsonschema>=4.21.0,<5.0.0
+pydantic>=2.5.0,<3.0.0
+
+# 4. Linting, Formatting & Type Checking
+ruff>=0.3.0,<1.0.0
