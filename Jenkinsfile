@@ -40,6 +40,11 @@ pipeline {
                     env.TARGET = (branch == 'main') ? 'prod' : 'dev'
                     env.PYTEST_ENV = 'qa'
                     env.GIT_BRANCH = branch
+                    // GitLab 전용 CI 변수를 코드(jira/discord/slack)가 읽으므로 Jenkins 값으로 매핑한다.
+                    // 이게 없으면 Jira 티켓 job_url이 "로컬 실행 환경", 알림 branch가 "local"로 찍힌다.
+                    env.CI_COMMIT_BRANCH = env.BRANCH_NAME
+                    env.CI_JOB_URL = env.BUILD_URL
+                    env.CI_PIPELINE_SOURCE = 'jenkins'
                 }
                 withCredentials([
                     file(credentialsId: "${env.CREDENTIALS_ENV_FILE}", variable: 'ENV_FILE'),
@@ -94,6 +99,9 @@ pipeline {
                     sh '''
                         . .venv/bin/activate
                         export TARGET="${TARGET}"
+                        # .env는 로컬 안전을 위해 false. CI 풀 회귀에서만 Jira 자동 버그 생성을 켠다.
+                        # load_dotenv는 기존 env를 override하지 않으므로 이 export가 .env의 false보다 우선한다.
+                        export ENABLE_JIRA_AUTO_BUG=true
                         ./scripts/run_tests.sh "${PYTEST_ENV}"
                     '''
                 }
