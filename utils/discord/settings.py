@@ -21,6 +21,7 @@ class DiscordSettings(BaseSettings):
     # Discord API의 Payload 크기 제한 초과 방지를 위한 매직 넘버 상수화
     max_failed_tests: int = Field(default=10, description="디스코드 노출할 최대 실패 테스트 개수")
     max_fields: int = Field(default=25, description="디스코드 Embed 최대 허용 필드(Fields) 개수")
+    max_field_length: int = Field(default=1024, description="디스코드 Embed 필드 하나의 최대 글자 수")
 
     @property
     def is_configured(self) -> bool:

@@ -101,25 +101,60 @@ class DiscordClient:
             error_body = e.response.text if e.response is not None else "N/A"
             logger.error(f"[디스코드 Error] HTTP Error {e.response.status_code}: {error_body}")
 
+    def _bullet_list(self, items: list[str], code: bool = False) -> str:
+        """항목 리스트를 불릿 문자열로 만들고 Discord Field 제약에 맞춰 잘라냅니다.
+
+        Discord는 Field 하나의 value가 1024자를 넘으면 요청을 거부하므로,
+        개수(max_failed_tests) 제한과 별개로 길이도 함께 방어합니다.
+
+        Args:
+            items (list[str]): 나열할 문자열 목록
+            code (bool): 각 항목을 코드(백틱)로 감쌀지 여부. 테스트 이름은 True, 문장은 False
+
+        Returns:
+            str: Discord 마크다운 불릿 목록 문자열
+        """
+        max_show = self.settings.max_failed_tests
+        mark = "`" if code else ""
+        lines = [f"• {mark}{item}{mark}" for item in items[:max_show]]
+
+        # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
+        if len(items) > max_show:
+            lines.append(f"... and {len(items) - max_show} more")
+
+        text = "\n".join(lines)
+        if len(text) > self.settings.max_field_length:
+            text = text[:self.settings.max_field_length - 15] + "\n... [TRUNCATED]"
+
+        return text
+
     def send_summary_report(
-        self, 
-        passed: int, 
-        failed: int, 
-        skipped: int, 
-        duration_sec: float, 
-        failed_tests: list[str] | None = None
+        self,
+        passed: int,
+        failed: int,
+        skipped: int,
+        duration_sec: float,
+        failed_tests: list[str] | None = None,
+        xfailed: int = 0,
+        xfail_reasons: list[str] | None = None,
+        xpass_reasons: list[str] | None = None
     ) -> None:
         """
         테스트 세션 종료 후 결과를 취합하여 Discord에 요약 알림(Summary Report)을 전송합니다.
-        
+
         Args:
             passed (int): 성공한 테스트 케이스 수
             failed (int): 실패한 테스트 케이스 수
             skipped (int): 건너뛴 테스트 케이스 수
             duration_sec (float): 전체 테스트 소요 시간(초)
             failed_tests (list[str] | None): 실패한 테스트 케이스의 이름 리스트 (선택 사항)
+            xfailed (int): 알려진 버그로 xfail 처리된 테스트 수
+            xfail_reasons (list[str] | None): xfail 사유 목록 (현재 알려진 버그 현황)
+            xpass_reasons (list[str] | None): XPASS 사유 목록 (버그가 수정된 것으로 추정되는 항목)
         """
-        total = passed + failed + skipped
+        # xfailed는 skipped와 성격이 달라 별도 집계되므로 Total에 반드시 더해야 합니다.
+        # (빠뜨리면 Discord Total이 Allure Total보다 적게 나옵니다)
+        total = passed + failed + skipped + xfailed
         success_rate = (passed / total * 100) if total > 0 else 0
         is_success = failed == 0
 
@@ -139,6 +174,8 @@ class DiscordClient:
         builder.add_field("Success Rate", f"{success_rate:.1f}%", inline=True)
         builder.add_field("Passed", f"{passed} 🟢", inline=True)
         builder.add_field("Failed", f"{failed} 🔴", inline=True)
+        builder.add_field("Skipped", f"{skipped} ⏭️", inline=True)
+        builder.add_field("Known Bug (xfail)", f"{xfailed} 🟡", inline=True)
         builder.add_field("Duration", f"{duration_sec:.1f} sec ⏱️", inline=True)
         builder.add_field("Branch", f"`{branch_name}` ({trigger})", inline=True)
 
@@ -148,14 +185,17 @@ class DiscordClient:
             builder.add_field("CI Pipeline", f"[View CI Pipeline 🔗]({job_url})", inline=False)
 
         if failed_tests:
-            max_show = self.settings.max_failed_tests
-            failed_list_str = "\n".join([f"• `{t}`" for t in failed_tests[:max_show]])
-            
-            # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
-            if len(failed_tests) > max_show:
-                failed_list_str += f"\n... and {len(failed_tests) - max_show} more"
-            
-            builder.add_field("🚨 Failed Tests", failed_list_str, inline=False)
+            builder.add_field("🚨 Failed Tests", self._bullet_list(failed_tests, code=True), inline=False)
+
+        # 알려진 버그 현황: 매 실행마다 "지금 무엇이 깨져 있는 상태인가"를 그대로 노출합니다.
+        if xfail_reasons:
+            builder.add_field("🟡 Known Bugs (xfail)", self._bullet_list(xfail_reasons), inline=False)
+
+        # XPASS는 버그가 고쳐졌다는 신호이므로 발생했을 때만 눈에 띄게 띄웁니다.
+        if xpass_reasons:
+            builder.add_field(
+                "✅ XPASS — 버그가 수정된 것으로 보입니다", self._bullet_list(xpass_reasons), inline=False
+            )
 
         builder.set_footer("TEAM2 CI/CD 자동화 시스템")
 
