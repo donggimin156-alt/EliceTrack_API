@@ -462,3 +462,34 @@ class TestBoardArticle:
 
         # 목록 전체를 스키마로 검증 (필드 존재 + 타입 + nullable 규칙)
         assert_valid_schema(body["board_articles"], BoardSchemas.BOARD_ARTICLE_LIST)
+
+    @pytest.mark.parametrize("board", COMMON_TARGETS, indirect=True)
+    def test_brd_068_create_article_without_cohort(self, board, board_ok, track_articles):
+        """BRD-068 cohort_id 없이도 게시글 작성은 성공한다 (공통).
+
+        create_article은 코호트 환경(prod)에서 cohort_id를 자동으로 실어 보내므로,
+        cohort_id가 빠진 경로는 create_article_raw로 직접 만들어 검증한다.
+
+        기대(명세서 '게시글 작성'):
+          - HTTP status_code == 200
+          - _result.status == 'ok'  (cohort_id는 선택 항목)
+          - board_article_id: int 반환
+
+        주의: 이렇게 만든 글은 cohort가 null이라 웹 UI 게시판 목록
+        (/classroom/{id}/article?filter_cohort_id=...)에는 노출되지 않는다.
+        API로는 조회되지만 화면에서는 보이지 않는 상태이므로, 실제 시나리오
+        테스트는 cohort_id를 함께 보내는 create_article을 사용한다.
+        """
+        resp = board.create_article_raw({
+            "title": "cohort 없는 게시글",
+            "content": "<p>내용</p>",
+            "is_secret": "false",
+            "classroom_id": board.classroom_id,
+        })
+
+        body = board_ok(resp)
+        article_id = body.get("board_article_id")
+        if isinstance(article_id, int):
+            track_articles.append((board, article_id))
+
+        assert isinstance(article_id, int), body
