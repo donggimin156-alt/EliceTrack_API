@@ -1,191 +1,90 @@
-# 🚀 Enterprise QA Automation Framework
+# 엘리스 LMS API QA 자동화 프로젝트
 
-본 프로젝트는 UI(Selenium WebDriver), API(Requests), Database(SQLAlchemy) 계층을 모두 아우르는 **엔드 투 엔드(E2E) 테스트 자동화 프레임워크**입니다. 
+엘리스 LMS(학습 관리 플랫폼)의 백엔드 API를 대상으로 테스트 자동화를 진행한 프로젝트입니다.
 
-글로벌 실무 표준(Best Practices)과 객체 지향 설계 원칙(SOLID, DRY, 커넥션 풀링 등)을 엄격하게 적용하여 유지보수성, 확장성, 그리고 병렬 실행(xdist) 환경에서의 무결성을 극대화했습니다.
+기간: 2026.07.09 ~ 진행 중
+팀: 6인
 
----
+* * *
 
-## 🛠️ Tech Stack
+브랜치 구성
 
-- **Language**: Python 3.11+
-- **Test Runner**: Pytest (`pytest-xdist` 병렬 처리 지원)
-- **UI Automation**: Selenium WebDriver 4.x (Page Object / Composition Pattern)
-- **API Automation**: Requests (Session / Retry Strategy)
-- **Database**: SQLAlchemy, PyMySQL (Connection Pooling)
-- **Data Validation & Config**: Pydantic V2, JSON Schema, Faker
-- **Reporting**: Allure Report
-- **CI/CD & Infrastructure**: Docker, Docker Compose, GitLab CI/CD
-- **Code Quality**: Ruff (Linter & Formatter), Mypy (Static Type Checker)
+requests — Python + Requests + Pytest 기반 팀 프로젝트
 
----
+* * *
 
-## 📁 Directory Structure
+requests 브랜치
 
-프레임워크는 철저한 **단일 책임 원칙(SRP)**과 **관심사 분리(SoC)**를 바탕으로 설계되었습니다.
+사용 도구
 
-```text
-qa_automation_framework/
-├── api/                    # API 클라이언트 및 DTO/Schema 데이터 모델
-├── builders/               # API 요청 Payload 생성을 위한 Builder 패턴 객체
-├── core/
-│   ├── config.py           # Pydantic 기반 전역 환경 변수(SSOT) 관리
-│   └── webdriver/          # 브라우저 팩토리 및 Options Builder (OCP 적용)
-├── data/                   # 정적 테스트 데이터 (JSON, CSV)
-├── fixtures/               # Pytest Fixtures (API Session, DB Client, WebDriver)
-├── hooks/                  # Pytest Hooks (Allure 아티팩트, Slack, Jira 연동 제어)
-├── pages/
-│   ├── base/               # UI 컴포지션 컴포넌트 (Waiter, Interactor, Inspector)
-│   └── ...                 # 비즈니스 도메인별 Page Object Model (POM) 클래스
-├── services/               # 도메인별 API 비즈니스 워크플로우 추상화 (Service Layer)
-├── tests/                  # 실제 Pytest 테스트 스크립트 (api, ui, e2e)
-├── utils/                  # 공통 유틸리티 (Assertions, DB, Jira, Slack, DataGen)
-├── docker-compose.yml      # Selenium Grid 및 테스트 실행 컨테이너 환경 정의
-├── pytest.ini              # Pytest 실행 옵션 및 마커(Marker) 정의
-└── requirements.txt        # 코어 패키지 의존성 명세
-```
+Python, Pytest, Requests, Pydantic, JSON Schema, Jenkins(Multibranch Pipeline), Allure Report, Slack / Discord Webhook, Jira, JMeter, Ruff
 
----
+팀 전체에서 Jenkins Multibranch 파이프라인을 구성해 Lint → 테스트 실행 → Allure 리포트 자동 발행 → Slack/Discord 알림 → Jira 이슈 자동 등록까지 이어지는 흐름을 만들었습니다. 원 저장소(GitLab)에서는 브랜치에 따라 대상 환경이 자동으로 갈리고(main은 prod, develop은 dev), develop은 매일 0시에 전체 회귀가 한 번 더 돌아갑니다.
 
-## ⚙️ Prerequisites & Installation
+테스트는 UI를 거치지 않고 API를 직접 호출해 검증합니다. 응답은 도메인별 JSON Schema로 구조를 먼저 검증한 뒤 값을 확인하며, 학습자(learner)와 교육자(educator) 두 권한을 각각 픽스처로 분리해 권한별 시나리오를 나눠 검증합니다.
 
-### 1. 로컬 환경 설정
+* * *
 
-Python 3.11 이상이 설치되어 있어야 합니다.
+디렉터리 구조
 
-```bash
-# 가상 환경 생성 및 활성화
-python -m venv venv
-source venv/Scripts/activate  # Windows
-# source venv/bin/activate    # Mac/Linux
+    api/
+      base_client.py      공통 HTTP 클라이언트 (세션, 재시도, 로깅)
+      endpoints/          도메인별 API 클라이언트
+      schemas/            응답 검증용 JSON Schema
+    core/config.py        Pydantic 기반 환경 설정 SSOT (dev/prod 분기)
+    fixtures/             인증 토큰, 테스트 데이터 셋업/티어다운
+    hooks/                Pytest 훅 (Allure, Slack, Discord, Jira 연동)
+    tests/api/            board, class, class_lecture, classhome, schedule
+    utils/                assertions 헬퍼, jira, slack, discord 클라이언트
+    scripts/              run_tests.sh, run_lint.sh, publish_allure_latest.sh
+    performance_test/     JMeter 부하 테스트 시나리오
+    Jenkinsfile           CI 파이프라인 정의
 
-# 패키지 설치 (프로덕션 코어 + 로컬 개발/Lint용)
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-```
+* * *
 
-### 2. 환경 변수 (`.env`) 셋업
+내가 한 것:
 
-프로젝트 루트 디렉터리에 `.env` 파일을 생성하고 아래 양식에 맞게 값을 채워 넣습니다.
-*(참고: 로컬 테스트 시 사용되며, CI/CD 환경에서는 파이프라인 Secret Variable로 오버라이딩 됩니다.)*
+프레임워크 초기 구조를 설계하고, 게시판(Board) 도메인 테스트와 알림·이슈 자동화 연동을 담당했습니다.
 
-```env
-TEST_ENV=qa
-UI_TIMEOUT=15
-API_TIMEOUT=10
+게시판 API 클라이언트를 만들어 흩어져 있던 요청 로직 22개 메서드를 `BoardApiClient` 한 곳으로 모았습니다. 이후 반복되던 성공/실패 판정 assert를 `board_ok` / `board_fail` 헬퍼로 통일하고 JSON Schema 검증을 도입해, 응답 구조가 바뀌었을 때 테스트마다 고치는 대신 스키마 파일 하나만 수정하면 되도록 바꿨습니다. 글 생성 셋업은 `make_article` 팩토리 픽스처로 추출해 중복 셋업 코드를 제거했습니다. 한 파일에 쌓여 있던 게시판 테스트 68개는 기능별(작성·댓글·좋아요·첨부·권한·보안 등) 7개 파일로 분리했습니다.
 
-# Database Configuration
-DB_DRIVER=mysql+pymysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_NAME=qa_test_db
+Jira 연동은 테스트 실패를 사람이 옮겨 적지 않아도 되게 만드는 데 초점을 뒀습니다. `@pytest.mark.jira("EQA-5")` 마커로 테스트와 이슈를 연결해 실패 시 해당 이슈에 자동으로 코멘트가 달리고, 마커가 없는 신규 실패는 티켓을 새로 생성합니다. 같은 요약의 미해결 이슈가 이미 있으면 재사용해 중복 티켓이 쌓이지 않게 했고, 티켓 본문에 실패한 HTTP 요청/응답과 payload를 함께 넣어 재현 없이도 원인을 볼 수 있게 했습니다. 고쳐진 버그는 XPASS 감지로 알려줍니다.
 
-# Integrations
-REQRES_API_KEY=your_api_key
-SLACK_WEBHOOK_URL=[https://hooks.slack.com/services/YOUR/WEBHOOK/URL](https://hooks.slack.com/services/YOUR/WEBHOOK/URL)
-JIRA_BASE_URL=[https://yourdomain.atlassian.net](https://yourdomain.atlassian.net)
-JIRA_USER_EMAIL=your_email@example.com
-JIRA_API_TOKEN=your_jira_api_token
-JIRA_PROJECT_KEY=QA
-ENABLE_JIRA_AUTO_BUG=false
-```
+알림 쪽에서는 요약 집계가 Allure의 Total과 맞지 않던 문제를 잡았습니다. xfail과 error가 누락돼 숫자가 어긋나던 것을 보정하고, Skipped와 xfail을 분리 표시해 "알려진 버그로 실패 중인 것"과 "아예 안 돈 것"을 구분할 수 있게 했습니다.
 
----
+CI는 팀이 GitLab CI에서 Jenkins로 옮기는 과정에서, 코드가 읽던 GitLab 전용 환경 변수를 Jenkins 값으로 매핑했습니다. 이 매핑이 없으면 Jira 티켓의 job_url이 "로컬 실행 환경"으로, 알림의 브랜치가 "local"로 찍혀 어느 빌드에서 난 실패인지 추적할 수 없었습니다.
 
-## ▶️ Running Tests
+팀 전체 테스트 케이스 235개 (board 68, class 126, schedule 18, classhome 16, class_lecture 7)
 
-### 1. 로컬 환경 (CLI) 실행
+* * *
 
-Pytest CLI를 활용하여 원하는 테스트만 세밀하게 타겟팅하여 실행할 수 있습니다.
+실행 방법
 
-```bash
-# 전체 테스트 병렬 실행 (가용 코어 자동 할당)
-pytest tests/ -n auto --alluredir=reports/allure-results
+    python -m venv .venv
+    source .venv/Scripts/activate
+    pip install -r requirements.txt
+    pip install -r requirements-dev.txt
 
-# 특정 마커(Marker) 테스트만 실행
-pytest -m "smoke"          # 스모크 테스트만 실행
-pytest -m "api and p0"     # API 테스트 중 P0(Critical) 우선순위만 실행
-pytest -m "ui" --headless  # UI 테스트를 화면 없이(Headless) 실행
+`.env.example`을 `.env`로 복사해 값을 채웁니다. `.env`는 gitignore 대상이며 CI에서는 Jenkins Credentials로 주입됩니다.
 
-# 브라우저 환경 및 Headless 옵션 제어 (기본값: chrome)
-pytest tests/ui/ --browser=firefox --headless
-```
+    # 전체 실행 (TARGET으로 dev/prod 선택)
+    TARGET=dev pytest tests/ --alluredir=reports/allure-results
 
-### 2. 🐳 Docker & Selenium Grid 실행
+    # 도메인/우선순위 마커로 좁혀 실행
+    pytest -m board
+    pytest -m "api and p0"
+    pytest -m "schedule and educator"
 
-로컬 PC 환경에 구애받지 않고 **완벽히 격리된 병렬 환경**에서 테스트를 실행하려면 Docker를 사용합니다.
+    # CI와 동일한 방식으로 실행 (Allure 리포트까지 생성)
+    ./scripts/run_tests.sh qa
 
-```bash
-# Selenium Grid 및 테스트 컨테이너 빌드 & 실행
-docker-compose up --build
+    # 리포트 열기
+    allure serve reports/allure-results
 
-# 실행 중인 브라우저 테스트 화면 실시간 모니터링 (NoVNC)
-# 웹 브라우저 접속: http://localhost:7900 (Password: secret)
-```
+* * *
 
----
+코드 품질
 
-## 📊 Reporting (Allure)
+Ruff로 린트와 포맷을 강제하며, CI의 Lint 스테이지에서 동일한 스크립트가 실행됩니다.
 
-이 프레임워크는 강력한 시각화 도구인 **Allure Report**를 기본으로 지원합니다. 테스트 실패 시 **스크린샷, DOM HTML 원본, 브라우저 콘솔 로그**가 리포트에 자동으로 첨부되어 디버깅 시간을 단축합니다.
-
-```bash
-# 이전 결과 초기화 후 HTML 리포트 생성 및 로컬 웹 서버로 열기
-allure serve reports/allure-results
-```
-
----
-
-## 🧩 Key Features & Architecture
-
-### 1. Composition 패턴 기반 UI 테스트 (Fluent DSL)
-
-수천 줄의 코드로 비대해지는 `BasePage`를 방지하기 위해 Wait, Action, State 객체로 책임을 분리했습니다.
-
-```python
-# 자연어(English-like)에 가까운 직관적인 UI 스크립트 작성 가능
-self.action.input_text(self._USERNAME_INPUT, username)
-self.action.click(self._LOGIN_BUTTON)
-self.wait.for_visibility(self._INVENTORY_CONTAINER)
-assert_true(self.state.is_visible(self._SHOPPING_CART))
-```
-
-### 2. API + Database E2E 교차 검증
-
-단순 API 응답 검증을 넘어, DB 커넥션 풀을 활용하여 실제 데이터베이스 적재 정합성까지 검증합니다.
-
-```python
-@pytest.mark.e2e
-def test_create_user_and_verify_db(user_service, db_client):
-    # API 요청
-    new_user = user_service.create_user(request_dto)
-    
-    # 실제 DB 데이터 검증
-    db_record = db_client.fetch_one("SELECT * FROM users WHERE id = :id", {"id": new_user.id})
-    assert_equal(db_record["status"], "ACTIVE")
-```
-
-### 3. Slack & Jira Automation
-
-* **Slack**: 테스트 종료 시 총 통과/실패 비율, 소요 시간, 실패한 테스트 목록을 Block Kit UI로 전송합니다.
-* **Jira**: CI 환경(`ENABLE_JIRA_AUTO_BUG=true`)에서 테스트 실패 시 자동으로 에러 트레이스와 함께 버그 티켓(Issue)을 생성하고 중복(Deduplication)을 방지합니다.
-
----
-
-## 🧑‍💻 Code Quality (Linting & Typing)
-
-협업 시 일관된 코드 컨벤션과 에러 방지를 위해 `Ruff`(정적 분석 도구)를 강제합니다. 커밋 전 반드시 린트 검사를 통과해야 합니다. 아래 명령어를 실행하세요.
-
-```bash
-# 코드 포맷팅 자동 맞춤
-ruff format .
-
-# Linter 경고 확인 및 자동 수정
-ruff check . --fix
-
-# 정적 타입(Type Hinting) 무결성 검사
-mypy .
-```
+    ./scripts/run_lint.sh
