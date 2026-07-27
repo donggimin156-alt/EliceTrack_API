@@ -36,25 +36,14 @@ from utils.helpers.class_helper import (
 @pytest.mark.educator
 class TestCourseAddDeleteHappyPath:
     def test_add_view_delete_full_cycle(
-        self, educator_class_api, assert_response, completed_bulk_add_task
+        self, educator_class_api, assert_response, completed_bulk_add_task, fetch_course_list
     ):
-        # --- 1~2단계: 추가 요청 + 완료 대기 (completed_bulk_add_task fixture가 이미 수행) ---
-        _task_id, final, course_id = completed_bulk_add_task
+        _, final, course_id = completed_bulk_add_task
         assert_task_completed(final, expected_result=BULK_ADD_EXPECTED_RESULT)
 
-        # --- 3단계: 목록에 반영됐는지 확인 ---
-        def _fetch_course_list():
-            count_resp = educator_class_api.get_course_count()
-            total = assert_response(count_resp, 200)
-            resp = educator_class_api.get_course_list(skip=0, count=total)
-            return assert_response(resp, 200)
-
         wait_until_item_in_list(
-            _fetch_course_list,
-            match_key="course_id",
-            match_value=course_id,
-        )
-
+            fetch_course_list, match_key="course_id", match_value=course_id
+    )
         # --- 4단계: 단건 조회로도 확인 (기존에 teardown 존재확인 용도로만 쓰이던 걸
         #            정식 assertion으로 승격) ---
         get_resp = educator_class_api.get_course(course_id)
@@ -75,7 +64,7 @@ class TestCourseAddDeleteHappyPath:
 
         # --- 7단계: 목록에서도 사라졌는지 확인 ---
         wait_until_item_not_in_list(
-            _fetch_course_list,
+            fetch_course_list,
             match_key="course_id",
             match_value=course_id,
         )

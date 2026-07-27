@@ -53,16 +53,12 @@ class TestCourseBulkAddTaskLifecycle:
         assert_model_not_found_error(data)
 
     def test_added_course_reflected_in_course_list(
-        self, educator_class_api, assert_response, completed_bulk_add_task
+        self, completed_bulk_add_task, fetch_course_list
     ):
-        _task_id, _final, added_course_id = completed_bulk_add_task
-
-        def _fetch_course_list():
-            resp = educator_class_api.get_course_list(skip=0, count=MAX_PAGE_SIZE)
-            return assert_response(resp, 200)
+        _, _, added_course_id = completed_bulk_add_task
 
         items = wait_until_item_in_list(
-            _fetch_course_list,
+            fetch_course_list,
             match_key="course_id",
             match_value=added_course_id,
         )

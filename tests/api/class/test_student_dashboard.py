@@ -11,7 +11,8 @@ import pytest
 
 from api.schemas.dashboard_schema import DashboardSchemas
 from core.config import settings
-from utils.helpers.class_helper import assert_model_not_found_error, assert_schema
+from utils.helpers.class_helper import assert_model_not_found_error, assert_progress_in_range
+from utils.helpers.api_assertions import assert_valid_schema
 
 PROD_ENV = settings.elice_environments["prod"]
 # `LEARNER_ACCOUNT_ID`는 개인 식별 정보이므로 레포에 커밋하지 않고 환경 변수로 주입받는다.
@@ -45,22 +46,17 @@ def student_progress(student_dashboard_api, assert_response):
 @pytest.mark.learner
 class TestStudentProgressSchema:
     def test_response_matches_schema(self, student_progress):
-        assert_schema(student_progress, DashboardSchemas.STUDENT_PROGRESS_SCHEMA)
+        assert_valid_schema(student_progress, DashboardSchemas.STUDENT_PROGRESS_SCHEMA)
 
     def test_account_matches_schema(self, student_progress):
-        assert_schema(student_progress["account"], DashboardSchemas.ACCOUNT_SCHEMA)
+        assert_valid_schema(student_progress["account"], DashboardSchemas.ACCOUNT_SCHEMA)
 
 
 @pytest.mark.api
 @pytest.mark.learner
 class TestStudentProgressBusiness:
     def test_learning_progress_is_numeric_string(self, student_progress):
-        # 실증됨: "5.26"처럼 문자열로 내려옴 — 자동화 assertion 시 형변환 필요
-        progress = student_progress["learning_progress"]
-        assert isinstance(progress, str), (
-            f"Expected learning_progress to be str but got {type(progress)}"
-        )
-        float(progress)  # 형변환 가능해야 함
+        assert_progress_in_range(student_progress["learning_progress"])
 
     def test_learning_progress_value_range(self, student_progress):
         progress = float(student_progress["learning_progress"])
