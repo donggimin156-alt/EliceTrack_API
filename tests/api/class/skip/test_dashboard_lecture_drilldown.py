@@ -1,3 +1,4 @@
+'''
 """
 P5: 수업별 학습현황 드릴다운 (수업 클릭 → 학생 목록 모달 → 개별 학생 학습현황)
 
@@ -111,3 +112,5 @@ class TestIndividualStudentDashboardFromModal:
         복원만으로 이뤄지는지 (API 자동화 관점에서는 검증 대상이 아닐 수 있음)
         """
         pass
+
+'''

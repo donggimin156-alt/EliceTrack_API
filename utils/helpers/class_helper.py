@@ -14,6 +14,7 @@ helper.py
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from datetime import datetime
@@ -299,3 +300,23 @@ def assert_progress_in_range(progress) -> float:
 def extract_course_ids(courses: list[dict]) -> list[int]:
     """과목 목록 응답에서 course_id만 추출한다."""
     return [course["course_id"] for course in courses]
+
+def build_json_query_params(**kwargs) -> dict:
+    """json 타입 쿼리 파라미터(filter_conditions, sort_by 등)를 JSON 문자열로 직렬화한다.
+
+    None인 값은 결과에서 제외한다 (해당 파라미터 자체를 요청에 넣지 않기 위함).
+    나머지 값(int, str, bool 등)은 그대로 통과시킨다.
+
+    ⚠️ requests의 params=dict는 값이 dict/list일 경우 자동으로 JSON 직렬화하지 않으므로,
+    LXP 스펙상 'json' 타입으로 명시된 쿼리 파라미터(filter_conditions, sort_by 등)는
+    이 헬퍼를 거쳐 명시적으로 json.dumps 처리해야 한다.
+    """
+    result = {}
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        if isinstance(value, (dict, list)):
+            result[key] = json.dumps(value)
+        else:
+            result[key] = value
+    return result
