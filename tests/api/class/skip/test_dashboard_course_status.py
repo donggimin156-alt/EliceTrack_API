@@ -1,3 +1,4 @@
+'''
 """
 P4: 학습현황(전체) 화면 - 상단 요약 지표 및 전체 학생 검색
 
@@ -113,3 +114,5 @@ class TestDashboardStudentSearch:
         빈 문자열도 유효한 filter 값으로 취급되는지
         """
         pass
+
+'''

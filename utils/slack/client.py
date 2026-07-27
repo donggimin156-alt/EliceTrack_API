@@ -105,25 +105,53 @@ class SlackClient:
             error_body = e.response.text if e.response is not None else "N/A"
             logger.error(f"[Slack Error] HTTP Error {e.response.status_code}: {error_body}")
 
+    def _bullet_list(self, items: list[str], code: bool = False) -> str:
+        """항목 리스트를 불릿 문자열로 만들고 설정된 개수(max_failed_tests)로 잘라냅니다.
+
+        Args:
+            items (list[str]): 나열할 문자열 목록
+            code (bool): 각 항목을 코드(백틱)로 감쌀지 여부. 테스트 이름은 True, 문장은 False
+
+        Returns:
+            str: Slack 마크다운 불릿 목록 문자열
+        """
+        max_show = self.settings.max_failed_tests
+        mark = "`" if code else ""
+        lines = [f"• {mark}{item}{mark}" for item in items[:max_show]]
+
+        # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
+        if len(items) > max_show:
+            lines.append(f"... and {len(items) - max_show} more")
+
+        return "\n".join(lines)
+
     def send_summary_report(
-        self, 
-        passed: int, 
-        failed: int, 
-        skipped: int, 
-        duration_sec: float, 
-        failed_tests: list[str] | None = None
+        self,
+        passed: int,
+        failed: int,
+        skipped: int,
+        duration_sec: float,
+        failed_tests: list[str] | None = None,
+        xfailed: int = 0,
+        xfail_reasons: list[str] | None = None,
+        xpass_reasons: list[str] | None = None
     ) -> None:
         """
         테스트 세션 종료 후 결과를 취합하여 Slack에 요약 알림(Summary Report)을 전송합니다.
-        
+
         Args:
             passed (int): 성공한 테스트 케이스 수
             failed (int): 실패한 테스트 케이스 수
             skipped (int): 건너뛴 테스트 케이스 수
             duration_sec (float): 전체 테스트 소요 시간(초)
             failed_tests (list[str] | None): 실패한 테스트 케이스의 이름 리스트 (선택 사항)
+            xfailed (int): 알려진 버그로 xfail 처리된 테스트 수
+            xfail_reasons (list[str] | None): xfail 사유 목록 (현재 알려진 버그 현황)
+            xpass_reasons (list[str] | None): XPASS 사유 목록 (버그가 수정된 것으로 추정되는 항목)
         """
-        total = passed + failed + skipped
+        # xfailed는 skipped와 성격이 달라 별도 집계되므로 Total에 반드시 더해야 합니다.
+        # (빠뜨리면 Slack Total이 Allure Total보다 적게 나옵니다)
+        total = passed + failed + skipped + xfailed
         success_rate = (passed / total * 100) if total > 0 else 0
         is_success = failed == 0
 
@@ -139,11 +167,14 @@ class SlackClient:
         trigger = os.getenv("CI_PIPELINE_SOURCE", "manual")
         job_url = (os.getenv("CI_JOB_URL") or os.getenv("BUILD_URL") or "").strip()
 
+        # Slack Section의 fields는 최대 10개까지 허용되므로 8개는 안전합니다.
         fields = [
             f"*Total Tests:*\n{total}",
             f"*Success Rate:*\n{success_rate:.1f}%",
             f"*Passed:*\n{passed} 🟢",
             f"*Failed:*\n{failed} 🔴",
+            f"*Skipped:*\n{skipped} ⏭️",
+            f"*Known Bug (xfail):*\n{xfailed} 🟡",
             f"*Duration:*\n{duration_sec:.1f} sec ⏱️",
             f"*Branch:*\n`{branch_name}` ({trigger})"
         ]
@@ -156,14 +187,19 @@ class SlackClient:
 
         if failed_tests:
             builder.add_divider()
-            max_show = self.settings.max_failed_tests
-            failed_list_str = "\n".join([f"• `{t}`" for t in failed_tests[:max_show]])
-            
-            # 지정된 개수(max_failed_tests)를 초과하면 줄임 표시를 추가합니다.
-            if len(failed_tests) > max_show:
-                failed_list_str += f"\n... and {len(failed_tests) - max_show} more"
-            
-            builder.add_text_section(f"*🚨 Failed Tests:*\n{failed_list_str}")
+            builder.add_text_section(f"*🚨 Failed Tests:*\n{self._bullet_list(failed_tests, code=True)}")
+
+        # 알려진 버그 현황: 매 실행마다 "지금 무엇이 깨져 있는 상태인가"를 그대로 노출합니다.
+        if xfail_reasons:
+            builder.add_divider()
+            builder.add_text_section(f"*🟡 Known Bugs (xfail):*\n{self._bullet_list(xfail_reasons)}")
+
+        # XPASS는 버그가 고쳐졌다는 신호이므로 발생했을 때만 눈에 띄게 띄웁니다.
+        if xpass_reasons:
+            builder.add_divider()
+            builder.add_text_section(
+                f"*✅ XPASS — 버그가 수정된 것으로 보입니다:*\n{self._bullet_list(xpass_reasons)}"
+            )
 
         payload = builder.build_payload(color)
         self._send(payload)
