@@ -137,6 +137,7 @@ class SlackClient:
 
         branch_name = os.getenv("CI_COMMIT_BRANCH", "local")
         trigger = os.getenv("CI_PIPELINE_SOURCE", "manual")
+        job_url = (os.getenv("CI_JOB_URL") or os.getenv("BUILD_URL") or "").strip()
 
         fields = [
             f"*Total Tests:*\n{total}",
@@ -146,11 +147,12 @@ class SlackClient:
             f"*Duration:*\n{duration_sec:.1f} sec ⏱️",
             f"*Branch:*\n`{branch_name}` ({trigger})"
         ]
+        if job_url.startswith("http"):
+            fields.append(f"*Jenkins:*\n<{job_url}|Open build #>")
         builder.add_section_fields(fields)
 
-        job_url = os.getenv("CI_JOB_URL", "")
         if job_url.startswith("http"):
-            builder.add_button("View CI Pipeline 🔗", job_url)
+            builder.add_button("View Jenkins Build 🔗", job_url)
 
         if failed_tests:
             builder.add_divider()
