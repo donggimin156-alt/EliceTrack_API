@@ -29,7 +29,7 @@ Python, Pytest, Requests, Pydantic, JSON Schema, Jenkins(Multibranch Pipeline), 
 디렉터리 구조
 
     api/
-      base_client.py      공통 HTTP 클라이언트 (세션, 재시도, 로깅)
+      base_client.py      공통 HTTP 클라이언트 (세션, 타임아웃, 로깅)
       endpoints/          도메인별 API 클라이언트
       schemas/            응답 검증용 JSON Schema
     core/config.py        Pydantic 기반 환경 설정 SSOT (dev/prod 분기)
@@ -47,15 +47,17 @@ Python, Pytest, Requests, Pydantic, JSON Schema, Jenkins(Multibranch Pipeline), 
 
 프레임워크 초기 구조를 설계하고, 게시판(Board) 도메인 테스트와 알림·이슈 자동화 연동을 담당했습니다.
 
-게시판 API 클라이언트를 만들어 흩어져 있던 요청 로직 22개 메서드를 `BoardApiClient` 한 곳으로 모았습니다. 이후 반복되던 성공/실패 판정 assert를 `board_ok` / `board_fail` 헬퍼로 통일하고 JSON Schema 검증을 도입해, 응답 구조가 바뀌었을 때 테스트마다 고치는 대신 스키마 파일 하나만 수정하면 되도록 바꿨습니다. 글 생성 셋업은 `make_article` 팩토리 픽스처로 추출해 중복 셋업 코드를 제거했습니다. 한 파일에 쌓여 있던 게시판 테스트 68개는 기능별(작성·댓글·좋아요·첨부·권한·보안 등) 7개 파일로 분리했습니다.
+게시판 API 클라이언트를 만들어 흩어져 있던 요청 로직을 `BoardApiClient` 한 곳(메서드 31개)으로 모았습니다. 이후 반복되던 성공/실패 판정 assert를 `board_ok` / `board_fail` 헬퍼로 통일하고 JSON Schema 검증을 도입해, 응답 구조가 바뀌었을 때 테스트마다 고치는 대신 스키마 파일 하나만 수정하면 되도록 바꿨습니다. 글 생성 셋업은 `make_article` 팩토리 픽스처로 추출해 중복 셋업 코드를 제거했습니다. 한 파일에 쌓여 있던 게시판 테스트 68개는 기능별(작성·댓글·좋아요·첨부·권한·보안 등) 7개 파일로 분리했습니다.
 
-Jira 연동은 테스트 실패를 사람이 옮겨 적지 않아도 되게 만드는 데 초점을 뒀습니다. `@pytest.mark.jira("EQA-5")` 마커로 테스트와 이슈를 연결해 실패 시 해당 이슈에 자동으로 코멘트가 달리고, 마커가 없는 신규 실패는 티켓을 새로 생성합니다. 같은 요약의 미해결 이슈가 이미 있으면 재사용해 중복 티켓이 쌓이지 않게 했고, 티켓 본문에 실패한 HTTP 요청/응답과 payload를 함께 넣어 재현 없이도 원인을 볼 수 있게 했습니다. 고쳐진 버그는 XPASS 감지로 알려줍니다.
+Jira 연동은 테스트 실패를 사람이 옮겨 적지 않아도 되게 만드는 데 초점을 뒀습니다. `@pytest.mark.jira("EQA-9")` 마커로 테스트와 이슈를 연결해 실패 시 해당 이슈에 자동으로 코멘트가 달리고, 마커가 없는 신규 실패는 티켓을 새로 생성합니다. 같은 요약의 미해결 이슈가 이미 있으면 재사용해 중복 티켓이 쌓이지 않게 했고, 티켓 본문에 실패한 HTTP 요청/응답과 payload를 함께 넣어 재현 없이도 원인을 볼 수 있게 했습니다. 고쳐진 버그는 XPASS 감지로 알려줍니다.
 
 알림 쪽에서는 요약 집계가 Allure의 Total과 맞지 않던 문제를 잡았습니다. xfail과 error가 누락돼 숫자가 어긋나던 것을 보정하고, Skipped와 xfail을 분리 표시해 "알려진 버그로 실패 중인 것"과 "아예 안 돈 것"을 구분할 수 있게 했습니다.
 
 CI는 팀이 GitLab CI에서 Jenkins로 옮기는 과정에서, 코드가 읽던 GitLab 전용 환경 변수를 Jenkins 값으로 매핑했습니다. 이 매핑이 없으면 Jira 티켓의 job_url이 "로컬 실행 환경"으로, 알림의 브랜치가 "local"로 찍혀 어느 빌드에서 난 실패인지 추적할 수 없었습니다.
 
-팀 전체 테스트 케이스 235개 (board 68, class 126, schedule 18, classhome 16, class_lecture 7)
+팀 전체 테스트 케이스 235건 (TC 문서 기준) · 자동화 실행 349건 (pytest 수집, 파라미터화 포함)
+
+실행 건수 도메인별 — board 136, class 131, classhome 39, schedule 36, class_lecture 7
 
 * * *
 
